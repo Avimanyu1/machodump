@@ -101,13 +101,13 @@ int main(int argc, char *argv[]) {
 	struct load_command *tmp = load_commands;
 	void *actual_commands[50] = {0};
 	size_t offset = 0;
-	for (size_t cnt = 0; cnt < header.ncmds; cnt++) {
+	for (size_t cnt = 0; cnt < header.ncmds && cnt < 50; cnt++) {
 		fread(tmp++, (sizeof(struct load_command)), 1, stream);
 		struct load_command lc = load_commands[cnt];
 		actual_commands[cnt] = malloc(lc.cmdsize);
 		fread(*(actual_commands+cnt), lc.cmdsize, 1, stream);
 		offset += lc.cmdsize;
-		printf("%d",lc.cmd);
+		printf("\ncmd:\t%d\tcmdsize:%d\n",lc.cmd,lc.cmdsize);
 	}
 };
 
