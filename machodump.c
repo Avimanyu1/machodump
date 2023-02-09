@@ -103,12 +103,9 @@ int main(int argc, char *argv[]) {
 	size_t offset = 0;
 	for (size_t cnt = 0; cnt < header.ncmds; cnt++) {
 		fread(tmp++, (sizeof(struct load_command)), 1, stream);
-		puts("fread for lc header");
 		struct load_command lc = load_commands[cnt];
 		actual_commands[cnt] = malloc(lc.cmdsize);
-		puts("malloc");
-		fread((actual_commands+cnt), lc.cmdsize, 1, stream);
-		puts("fread for lc");
+		fread(*(actual_commands+cnt), lc.cmdsize, 1, stream);
 		offset += lc.cmdsize;
 		printf("%d",lc.cmd);
 	}
