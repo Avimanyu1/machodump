@@ -135,3 +135,5 @@
 #define isSIMSupport(filetype) ((filetype&0x08000000))
 #define MH_DYLIB_IN_CACHE 	0x80000000
 #define isDylibCached(filetype) ((filetype&0x80000000))
+
+#define LC_REQ_DYLD 0x80000000

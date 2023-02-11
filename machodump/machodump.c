@@ -9,6 +9,9 @@ void printFlags(int);
 void printMagic(int);
 void printFiletype(int);
 void printCPUType(int);
+void *alloc_segcom(void);
+void *alloc_seccom(void);
+void printCmd(int cmd);
 
 static int is64 = 0;
 
@@ -60,6 +63,35 @@ struct segment_command_64 { /* for 64-bit architectures */
 	uint32_t	flags;		/* flags */
 };
 
+struct section { /* for 32-bit architectures */
+    char        sectname[16];    /* name of this section */
+    char        segname[16];    /* segment this section goes in */
+    uint32_t    addr;        /* memory address of this section */
+    uint32_t    size;        /* size in bytes of this section */
+    uint32_t    offset;        /* file offset of this section */
+    uint32_t    align;        /* section alignment (power of 2) */
+    uint32_t    reloff;        /* file offset of relocation entries */
+    uint32_t    nreloc;        /* number of relocation entries */
+    uint32_t    flags;        /* flags (section type and attributes)*/
+    uint32_t    reserved1;    /* reserved (for offset or index) */
+    uint32_t    reserved2;    /* reserved (for count or sizeof) */
+};
+
+struct section_64 { /* for 64-bit architectures */
+    char        sectname[16];    /* name of this section */
+    char        segname[16];    /* segment this section goes in */
+    uint64_t    addr;        /* memory address of this section */
+    uint64_t    size;        /* size in bytes of this section */
+    uint32_t    offset;        /* file offset of this section */
+    uint32_t    align;        /* section alignment (power of 2) */
+    uint32_t    reloff;        /* file offset of relocation entries */
+    uint32_t    nreloc;        /* number of relocation entries */
+    uint32_t    flags;        /* flags (section type and attributes)*/
+    uint32_t    reserved1;    /* reserved (for offset or index) */
+    uint32_t    reserved2;    /* reserved (for count or sizeof) */
+    uint32_t    reserved3;    /* reserved */
+};
+
 struct load_command {
 	uint32_t cmd;		/* type of load command */
 	uint32_t cmdsize;	/* total size of command in bytes */
@@ -81,36 +113,369 @@ int main(int argc, char *argv[]) {
 		_exit(1);
 		}
 	fseek(stream,0,SEEK_SET);
-	struct mach_header_64 header = {0};
+	struct mach_header_64 header;
 	fread(&header, sizeof(struct mach_header_64), 1, stream);
-	
-	printf("\n Magic Number:\t%X\t",header.magic);
+	puts("Mach Header :");
+	printf("\n Magic Number:\t%x\t",header.magic);
 	printMagic(header.magic);
-	printf("\n CPU Type:\t%d\t",header.cputype);
+	printf("\n CPU Type:\t%x\t",header.cputype);
 	printCPUType(header.cputype);
-	printf("\n CPU Subtype:\t%d",header.cpusubtype);
-	printf("\n Filetype:\t%X",header.filetype);
+	printf("\n CPU Subtype:\t%x",header.cpusubtype);
+	printf("\n Filetype:\t%x",header.filetype);
 	printFiletype(header.filetype);
 	printf("\n Number of LC:\t%d",header.ncmds);
-	printf("\n LC_SIZE:\t%X [%d]",header.sizeofcmds,header.sizeofcmds);
-	printf("\n Flags:\t%X",header.flags);
+	printf("\n LC_SIZE:\t%x [%d]",header.sizeofcmds,header.sizeofcmds);
+	printf("\n Flags:\t%x",header.flags);
 	printFlags(header.flags);
-	printf("\n Reserved:\t%X",header.reserved);
-	
-	struct load_command* load_commands = malloc(sizeof(load_commands) * header.ncmds);
-	struct load_command *tmp = load_commands;
-	void *actual_commands[50] = {0};
-	size_t offset = 0;
-	for (size_t cnt = 0; cnt < header.ncmds && cnt < 50; cnt++) {
-		fread(tmp++, (sizeof(struct load_command)), 1, stream);
-		struct load_command lc = load_commands[cnt];
-		actual_commands[cnt] = malloc(lc.cmdsize);
-		fread(*(actual_commands+cnt), lc.cmdsize, 1, stream);
-		offset += lc.cmdsize;
-		printf("\ncmd:\t%d\tcmdsize:%d\n",lc.cmd,lc.cmdsize);
-	}
-};
+	printf("\n Reserved:\t%x\n",header.reserved);
+	puts("Load Commands :");
+	struct load_command* load_commands = malloc(sizeof(struct load_command) * header.ncmds);
+	struct segment_command_64* segment_commands = malloc(sizeof(struct segment_command_64) * header.ncmds);
+    
+//  for (size_t offset = 0,cnt = 0; cnt < header.ncmds ; cnt++) {
+//      fread(&load_commands[cnt], sizeof(struct load_command), 1, stream);
+//		fseek(stream, -(sizeof(struct load_command)), SEEK_CUR);
+//		offset = load_commands[cnt].cmdsize;
+//		printCmd(load_commands[cnt].cmd);
+//		printf("\t%d\n",load_commands[cnt].cmdsize);
+//		fseek(stream, offset, SEEK_CUR);
+//  }
+	fseek(stream, sizeof(struct mach_header_64), SEEK_SET );
+	for (size_t offset = 0,cnt = 0; cnt < header.ncmds ; cnt++) {
+		fread(&segment_commands[cnt], sizeof(struct segment_command_64), 1, stream);
+		fseek(stream, -(sizeof(struct segment_command_64)), SEEK_CUR);
+		offset = segment_commands[cnt].cmdsize;
+		printCmd(segment_commands[cnt].cmd);
+		printf("\t%d\t",segment_commands[cnt].cmdsize);
+		if (*segment_commands[cnt].segname == 95 && *(segment_commands[cnt].segname+1) == 95)
+			printf("%s\n",segment_commands[cnt].segname);
+		else puts("");
+		fseek(stream, offset, SEEK_CUR);
 
+	}
+}
+
+void printCmd(int cmd)
+{
+	switch (cmd) {
+		case 0x1:
+			{
+				printf("LC_SEGMENT");
+				break;
+			}
+		case 0x2:
+			{
+				printf("LC_SYMTAB");
+				break;
+			}
+			
+		case 0x3:
+			{
+				printf("LC_SYMSEG");
+				break;
+			}
+			
+		case 0x4:
+			{
+				printf("LC_THREAD");
+				break;
+			}
+			
+		case 0x5:
+			{
+				printf("LC_UNIXTHREAD");
+				break;
+			}
+			
+		case 0x6:
+			{
+				printf("LC_LOADFVMLIB");
+				break;
+			}
+			
+		case 0x7:
+			{
+				printf("LC_IDFVMLIBLC_IDENT");
+				break;
+			}
+			
+		case 0x8:
+			{
+				printf("LC_IDENT");
+				break;
+			}
+			
+		case 0x9:
+			{
+				printf("LC_FVMFILE");
+				break;
+			}
+			
+		case 0xa:
+			{
+				printf("LC_PREPAGE");
+				break;
+			}
+			
+		case 0xb:
+			{
+				printf("LC_DYSYMTAB");
+				break;
+			}
+			
+		case 0xc:
+			{
+				printf("LC_LOAD_DYLIB");
+				break;
+			}
+			
+		case 0xd:
+			{
+				printf("LC_ID_DYLIB");
+				break;
+			}
+			
+		case 0xe:
+			{
+				printf("LC_LOAD_DYLINKER");
+				break;
+			}
+			
+		case 0xf:
+			{
+				printf("LC_ID_DYLINKER");
+				break;
+			}
+			
+		case 0x10:
+			{
+				printf("LC_PREBOUND_DYLIB");
+				break;
+			}
+			
+		case 0x11:
+			{
+				printf("LC_ROUTINES");
+				break;
+			}
+			
+		case 0x12:
+			{
+				printf("LC_SUB_FRAMEWORK");
+				break;
+			}
+			
+		case 0x13:
+			{
+				printf("LC_SUB_UMBRELLA");
+				break;
+			}
+		case 0x14:
+			{
+				printf("LC_SUB_CLIENT");
+				break;
+			}
+		case 0x15:
+			{
+				printf("LC_SUB_LIBRARY");
+				break;
+			}
+			
+		case 0x16:
+			{
+				printf("LC_TWOLEVEL_HINTS");
+				break;
+			}
+			
+		case 0x17:
+			{
+				printf("LC_PREBIND_CKSUM");
+				break;
+			}
+			
+		case (0x18 | LC_REQ_DYLD):
+			{
+				printf("LC_LOAD_WEAK_DYLIB");
+				break;
+			}
+			
+		case 0x19:
+			{
+				printf("LC_SEGMENT_64");
+				break;
+			}
+			
+		case 0x1a:
+			{
+				printf("LC_ROUTINES_64");
+				break;
+			}
+			
+		case 0x1b:
+			{
+				printf("LC_UUID");
+				break;
+			}
+			
+		case (0x1c | LC_REQ_DYLD):
+			{
+				printf("LC_RPATH");
+				break;
+			}
+			
+		case 0x1d:
+			{
+				printf("LC_CODE_SIGNATURE");
+				break;
+			}
+			
+		case 0x1e:
+			{
+				printf("LC_SEGMENT_SPLIT_INFO");
+				break;
+			}
+			
+		case (0x1f | LC_REQ_DYLD):
+			{
+				printf("LC_REEXPORT_DYLIB");
+				break;
+			}
+			
+		case 0x20:
+			{
+				printf("LC_LAZY_LOAD_DYLIB");
+				break;
+			}
+			
+		case 0x21:
+			{
+				printf("LC_ENCRYPTION_INFO");
+				break;
+			}
+			
+		case 0x22:
+			{
+				printf("LC_DYLD_INFO");
+				break;
+			}
+		case (0x22|LC_REQ_DYLD):
+			{
+				printf("LC_DYLD_INFO_ONLY");
+				break;
+			}
+		case (0x23 | LC_REQ_DYLD):
+			{
+				printf("LC_LOAD_UPWARD_DYLIB");
+				break;
+			}
+			
+		case 0x24:
+			{
+				printf("LC_VERSION_MIN_MACOSX");
+				break;
+			}
+			
+		case 0x25:
+			{
+				printf("LC_VERSION_MIN_IPHONEOS");
+				break;
+			}
+			
+		case 0x26:
+			{
+				printf("LC_FUNCTION_STARTS");
+				break;
+			}			
+		case 0x27:
+			{
+				printf("LC_DYLD_ENVIRONMENT");
+				break;
+			}
+			
+		case (0x28|LC_REQ_DYLD):
+			{
+				printf("LC_MAIN");
+				break;
+			}
+			
+		case 0x29:
+			{
+				printf("LC_DATA_IN_CODE");
+				break;
+			}
+			
+		case 0x2a:
+			{
+				printf("LC_SOURCE_VERSION");
+				break;
+			}
+			
+		case 0x2b:
+			{
+				printf("LC_DYLIB_CODE_SIGN_DRS");
+				break;
+			}			
+		case 0x2c:
+			{
+				printf("LC_ENCRYPTION_INFO_64");
+				break;
+			}
+			
+		case 0x2d:
+			{
+				printf("LC_LINKER_OPTION");
+				break;
+			}
+			
+		case 0x2e:
+			{
+				printf("LC_LINKER_OPTIMIZATION_HINT");
+				break;
+			}
+			
+		case 0x2f:
+			{
+				printf("LC_VERSION_MIN_TVOS");
+				break;
+			}			
+		case 0x30:
+			{
+				printf("LC_VERSION_MIN_WATCHOS");
+				break;
+			}
+			
+		case 0x31:
+			{
+				printf("LC_NOTE");
+				break;
+			}
+			
+		case 0x32:
+			{
+				printf("LC_BUILD_VERSION");
+				break;
+			}			
+		case (0x33 | LC_REQ_DYLD):
+			{
+				printf("LC_DYLD_EXPORTS_TRIE");
+				break;
+			}
+			
+		case (0x34 | LC_REQ_DYLD):
+			{
+				printf("LC_DYLD_CHAINED_FIXUPS");
+				break;
+			}			
+		case (0x35 | LC_REQ_DYLD):
+			{
+				printf("LC_FILESET_ENTRY");
+				break;
+			}
+		default: {
+			printf("Error : No such Load Command exists!");
+		}
+	}
+}
 void printFlags(int flags)
 {
 	puts("");
@@ -283,4 +648,20 @@ void printCPUType(int cputype)
 			}
 		default: printf("What even is this?");
 	}
+}
+void *alloc_segcom(void)
+{
+	if (is64)
+		{
+			return malloc(sizeof(struct segment_command_64) * 16);
+		}
+	else  return malloc(sizeof(struct segment_command) * 16);
+}
+void *alloc_seccom(void)
+{
+	if (is64)
+		{
+			return malloc(sizeof(struct section_64));
+		}
+	else  return malloc(sizeof(struct section));
 }
