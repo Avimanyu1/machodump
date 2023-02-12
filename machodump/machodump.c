@@ -11,7 +11,7 @@ void printFiletype(int);
 void printCPUType(int);
 void *alloc_segcom(void);
 void *alloc_seccom(void);
-void printCmd(int cmd);
+char *printCmd(int cmd);
 
 static int is64 = 0;
 
@@ -125,354 +125,328 @@ int main(int argc, char *argv[]) {
 	printFiletype(header.filetype);
 	printf("\n Number of LC:\t%d",header.ncmds);
 	printf("\n LC_SIZE:\t%x [%d]",header.sizeofcmds,header.sizeofcmds);
-	printf("\n Flags:\t%x",header.flags);
+	printf("\n Flags:\t0x%x",header.flags);
 	printFlags(header.flags);
 	printf("\n Reserved:\t%x\n",header.reserved);
 	puts("Load Commands :");
-	struct load_command* load_commands = malloc(sizeof(struct load_command) * header.ncmds);
+	
 	struct segment_command_64* segment_commands = malloc(sizeof(struct segment_command_64) * header.ncmds);
-    
-//  for (size_t offset = 0,cnt = 0; cnt < header.ncmds ; cnt++) {
-//      fread(&load_commands[cnt], sizeof(struct load_command), 1, stream);
-//		fseek(stream, -(sizeof(struct load_command)), SEEK_CUR);
-//		offset = load_commands[cnt].cmdsize;
-//		printCmd(load_commands[cnt].cmd);
-//		printf("\t%d\n",load_commands[cnt].cmdsize);
-//		fseek(stream, offset, SEEK_CUR);
-//  }
-	fseek(stream, sizeof(struct mach_header_64), SEEK_SET );
-	for (size_t offset = 0,cnt = 0; cnt < header.ncmds ; cnt++) {
-		fread(&segment_commands[cnt], sizeof(struct segment_command_64), 1, stream);
-		fseek(stream, -(sizeof(struct segment_command_64)), SEEK_CUR);
-		offset = segment_commands[cnt].cmdsize;
-		printCmd(segment_commands[cnt].cmd);
-		printf("\t%d\t",segment_commands[cnt].cmdsize);
-		if (*segment_commands[cnt].segname == 95 && *(segment_commands[cnt].segname+1) == 95)
-			printf("%s\n",segment_commands[cnt].segname);
+    size_t section_cmd_cnt = 0;
+	
+	for (size_t offset,segcnt = 0; segcnt < header.ncmds ; segcnt++) {
+		fread(&segment_commands[segcnt], sizeof(struct segment_command_64), 1, stream);
+		offset = segment_commands[segcnt].cmdsize;
+		printf("%24s",printCmd(segment_commands[segcnt].cmd));
+		printf("\t%d\t",segment_commands[segcnt].cmdsize);
+		if (*segment_commands[segcnt].segname == 95 && *(segment_commands[segcnt].segname+1) == 95)
+			{
+				printf("%16s\t",segment_commands[segcnt].segname);
+				printf("vmadr: 0x%012llx\tvmsz: 0x%012llx\t floff: 0x%04llx\tflsz: 0x%6llx\tnsect: %d\n",
+					segment_commands[segcnt].vmaddr,
+					segment_commands[segcnt].vmsize,
+					segment_commands[segcnt].fileoff,
+					segment_commands[segcnt].filesize,
+					segment_commands[segcnt].nsects);
+				section_cmd_cnt += segment_commands[segcnt].nsects;
+			}
 		else puts("");
-		fseek(stream, offset, SEEK_CUR);
-
+		
+		fseek(stream, offset-sizeof(struct segment_command_64), SEEK_CUR);
+	}
+	fseek(stream, sizeof(struct mach_header_64), SEEK_SET);
+	struct section_64* section_commands = malloc(sizeof(section_commands) * section_cmd_cnt);
+	
+	for (size_t offset,seccount = 0,segcnt = 0; segcnt < header.ncmds ; segcnt++) {
+		fseek(stream, sizeof(struct segment_command_64), SEEK_CUR);
+		offset = segment_commands[segcnt].cmdsize;
+		if (segment_commands[segcnt].nsects) {
+			fread(&section_commands[seccount], sizeof(struct section_64), segment_commands[segcnt].nsects, stream);
+			seccount += segment_commands[segcnt].nsects;
+			fseek(stream, -(sizeof(struct section_64) * segment_commands[segcnt].nsects), SEEK_CUR);
+		}
+		fseek(stream, offset-sizeof(struct segment_command_64), SEEK_CUR);
+	}
+	puts("Segment - Section \t\t\t\t\t[addr\t\tsz\t   offs\t   align reloff\tnreloc\tflags]");
+	for (size_t nsect = 0; nsect < section_cmd_cnt; nsect++) {
+		printf("%16s\t<==\t%16s\t[0x%012llx 0x%08llx 0x%04x 0x%04x 0x%04x 0x%04x 0x%08x]\n",
+			section_commands[nsect].segname,
+			section_commands[nsect].sectname,
+			section_commands[nsect].addr,
+			section_commands[nsect].size,
+			section_commands[nsect].offset,
+			section_commands[nsect].align,
+			section_commands[nsect].reloff,
+			section_commands[nsect].nreloc,
+			section_commands[nsect].flags
+		);
 	}
 }
 
-void printCmd(int cmd)
+char *printCmd(int cmd)
 {
 	switch (cmd) {
 		case 0x1:
 			{
-				printf("LC_SEGMENT");
-				break;
+				return "LC_SEGMENT";
 			}
 		case 0x2:
 			{
-				printf("LC_SYMTAB");
-				break;
+				return "LC_SYMTAB";
 			}
 			
 		case 0x3:
 			{
-				printf("LC_SYMSEG");
-				break;
+				return "LC_SYMSEG";
 			}
 			
 		case 0x4:
 			{
-				printf("LC_THREAD");
-				break;
+				return "LC_THREAD";
 			}
 			
 		case 0x5:
 			{
-				printf("LC_UNIXTHREAD");
-				break;
+				return "LC_UNIXTHREAD";
 			}
 			
 		case 0x6:
 			{
-				printf("LC_LOADFVMLIB");
+				return "LC_LOADFVMLIB";
 				break;
 			}
 			
 		case 0x7:
 			{
-				printf("LC_IDFVMLIBLC_IDENT");
-				break;
+				return "LC_IDFVMLIBLC_IDENT";
 			}
 			
 		case 0x8:
 			{
-				printf("LC_IDENT");
-				break;
+				return "LC_IDENT";
 			}
 			
 		case 0x9:
 			{
-				printf("LC_FVMFILE");
-				break;
+				return "LC_FVMFILE";
 			}
 			
 		case 0xa:
 			{
-				printf("LC_PREPAGE");
-				break;
+				return "LC_PREPAGE";
 			}
 			
 		case 0xb:
 			{
-				printf("LC_DYSYMTAB");
-				break;
+				return "LC_DYSYMTAB";
 			}
 			
 		case 0xc:
 			{
-				printf("LC_LOAD_DYLIB");
-				break;
+				return "LC_LOAD_DYLIB";
 			}
 			
 		case 0xd:
 			{
-				printf("LC_ID_DYLIB");
-				break;
+				return "LC_ID_DYLIB";
 			}
 			
 		case 0xe:
 			{
-				printf("LC_LOAD_DYLINKER");
-				break;
+				return "LC_LOAD_DYLINKER";
 			}
 			
 		case 0xf:
 			{
-				printf("LC_ID_DYLINKER");
-				break;
+				return "LC_ID_DYLINKER";
 			}
 			
 		case 0x10:
 			{
-				printf("LC_PREBOUND_DYLIB");
-				break;
+				return "LC_PREBOUND_DYLIB";
 			}
 			
 		case 0x11:
 			{
-				printf("LC_ROUTINES");
-				break;
+				return "LC_ROUTINES";
 			}
 			
 		case 0x12:
 			{
-				printf("LC_SUB_FRAMEWORK");
-				break;
+				return "LC_SUB_FRAMEWORK";
 			}
 			
 		case 0x13:
 			{
-				printf("LC_SUB_UMBRELLA");
-				break;
+				return "LC_SUB_UMBRELLA";
 			}
 		case 0x14:
 			{
-				printf("LC_SUB_CLIENT");
-				break;
+				return "LC_SUB_CLIENT";
 			}
 		case 0x15:
 			{
-				printf("LC_SUB_LIBRARY");
-				break;
+				return "LC_SUB_LIBRARY";
 			}
 			
 		case 0x16:
 			{
-				printf("LC_TWOLEVEL_HINTS");
-				break;
+				return "LC_TWOLEVEL_HINTS";
 			}
 			
 		case 0x17:
 			{
-				printf("LC_PREBIND_CKSUM");
-				break;
+				return "LC_PREBIND_CKSUM";
 			}
 			
 		case (0x18 | LC_REQ_DYLD):
 			{
-				printf("LC_LOAD_WEAK_DYLIB");
-				break;
+				return "LC_LOAD_WEAK_DYLIB";
 			}
 			
 		case 0x19:
 			{
-				printf("LC_SEGMENT_64");
-				break;
+				return "LC_SEGMENT_64";
 			}
 			
 		case 0x1a:
 			{
-				printf("LC_ROUTINES_64");
-				break;
+				return "LC_ROUTINES_64";
 			}
 			
 		case 0x1b:
 			{
-				printf("LC_UUID");
-				break;
+				return "LC_UUID";
 			}
 			
 		case (0x1c | LC_REQ_DYLD):
 			{
-				printf("LC_RPATH");
-				break;
+				return "LC_RPATH";
 			}
 			
 		case 0x1d:
 			{
-				printf("LC_CODE_SIGNATURE");
-				break;
+				return "LC_CODE_SIGNATURE";
 			}
 			
 		case 0x1e:
 			{
-				printf("LC_SEGMENT_SPLIT_INFO");
-				break;
+				return "LC_SEGMENT_SPLIT_INFO";
 			}
 			
 		case (0x1f | LC_REQ_DYLD):
 			{
-				printf("LC_REEXPORT_DYLIB");
-				break;
+				return "LC_REEXPORT_DYLIB";
 			}
 			
 		case 0x20:
 			{
-				printf("LC_LAZY_LOAD_DYLIB");
-				break;
+				return "LC_LAZY_LOAD_DYLIB";
 			}
 			
 		case 0x21:
 			{
-				printf("LC_ENCRYPTION_INFO");
-				break;
+				return "LC_ENCRYPTION_INFO";
 			}
 			
 		case 0x22:
 			{
-				printf("LC_DYLD_INFO");
-				break;
+				return "LC_DYLD_INFO";
 			}
 		case (0x22|LC_REQ_DYLD):
 			{
-				printf("LC_DYLD_INFO_ONLY");
-				break;
+				return "LC_DYLD_INFO_ONLY";
 			}
 		case (0x23 | LC_REQ_DYLD):
 			{
-				printf("LC_LOAD_UPWARD_DYLIB");
-				break;
+				return "LC_LOAD_UPWARD_DYLIB";
 			}
 			
 		case 0x24:
 			{
-				printf("LC_VERSION_MIN_MACOSX");
-				break;
+				return "LC_VERSION_MIN_MACOSX";
 			}
 			
 		case 0x25:
 			{
-				printf("LC_VERSION_MIN_IPHONEOS");
-				break;
+				return "LC_VERSION_MIN_IPHONEOS";
 			}
 			
 		case 0x26:
 			{
-				printf("LC_FUNCTION_STARTS");
-				break;
-			}			
+				return "LC_FUNCTION_STARTS";
+			}
 		case 0x27:
 			{
-				printf("LC_DYLD_ENVIRONMENT");
-				break;
+				return "LC_DYLD_ENVIRONMENT";
 			}
 			
 		case (0x28|LC_REQ_DYLD):
 			{
-				printf("LC_MAIN");
-				break;
+				return "LC_MAIN";
 			}
 			
 		case 0x29:
 			{
-				printf("LC_DATA_IN_CODE");
-				break;
+				return "LC_DATA_IN_CODE";
 			}
 			
 		case 0x2a:
 			{
-				printf("LC_SOURCE_VERSION");
-				break;
+				return "LC_SOURCE_VERSION";
 			}
 			
 		case 0x2b:
 			{
-				printf("LC_DYLIB_CODE_SIGN_DRS");
-				break;
-			}			
+				return "LC_DYLIB_CODE_SIGN_DRS";
+			}
 		case 0x2c:
 			{
-				printf("LC_ENCRYPTION_INFO_64");
-				break;
+				return "LC_ENCRYPTION_INFO_64";
 			}
 			
 		case 0x2d:
 			{
-				printf("LC_LINKER_OPTION");
-				break;
+				return "LC_LINKER_OPTION";
 			}
 			
 		case 0x2e:
 			{
-				printf("LC_LINKER_OPTIMIZATION_HINT");
-				break;
+				return "LC_LINKER_OPTIMIZATION_HINT";
 			}
 			
 		case 0x2f:
 			{
-				printf("LC_VERSION_MIN_TVOS");
-				break;
-			}			
+				return "LC_VERSION_MIN_TVOS";
+			}
 		case 0x30:
 			{
-				printf("LC_VERSION_MIN_WATCHOS");
-				break;
+				return "LC_VERSION_MIN_WATCHOS";
 			}
 			
 		case 0x31:
 			{
-				printf("LC_NOTE");
-				break;
+				return "LC_NOTE";
 			}
 			
 		case 0x32:
 			{
-				printf("LC_BUILD_VERSION");
-				break;
+				return "LC_BUILD_VERSION";
 			}			
 		case (0x33 | LC_REQ_DYLD):
 			{
-				printf("LC_DYLD_EXPORTS_TRIE");
-				break;
+				return "LC_DYLD_EXPORTS_TRIE";
 			}
 			
 		case (0x34 | LC_REQ_DYLD):
 			{
-				printf("LC_DYLD_CHAINED_FIXUPS");
-				break;
+				return "LC_DYLD_CHAINED_FIXUPS";
 			}			
 		case (0x35 | LC_REQ_DYLD):
 			{
-				printf("LC_FILESET_ENTRY");
-				break;
+				return "LC_FILESET_ENTRY";
 			}
 		default: {
-			printf("Error : No such Load Command exists!");
+			return "Error : No such Load Command exists!";
 		}
 	}
 }
