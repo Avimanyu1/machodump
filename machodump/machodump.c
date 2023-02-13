@@ -4,6 +4,7 @@
 #include <mach/machine.h>
 #include <mach/vm_prot.h>
 #include "defs.h"
+#include <string.h>
 
 void printFlags(int);
 void printMagic(int);
@@ -132,7 +133,8 @@ int main(int argc, char *argv[]) {
 	puts("Load Commands :");
 	
 	struct segment_command_64* segment_commands = malloc(sizeof(struct segment_command_64) * header.ncmds);
-    size_t section_cmd_cnt = 0;
+	memset(segment_commands, 0, sizeof(struct segment_command_64) * header.ncmds);
+    unsigned int section_cmd_cnt = 0;
 	
 	for (size_t offset,segcnt = 0; segcnt < header.ncmds ; segcnt++) {
 		fread(&segment_commands[segcnt], sizeof(struct segment_command_64), 1, stream);
@@ -140,7 +142,7 @@ int main(int argc, char *argv[]) {
 		printf("%lu",segcnt);
 		printf("%24s",printCmd(segment_commands[segcnt].cmd));
 		printf("\t%d\t",segment_commands[segcnt].cmdsize);
-		if (*segment_commands[segcnt].segname == 95 && *(segment_commands[segcnt].segname+1) == 95)
+		if (segment_commands[segcnt].cmd == LC_SEGMENT_64)
 			{
 				printf("%16s\t",segment_commands[segcnt].segname);
 				printf("vmadr: 0x%012llx\tvmsz: 0x%012llx\t floff: 0x%04llx\tflsz: 0x%6llx\tnsect: %d\n",
@@ -155,7 +157,7 @@ int main(int argc, char *argv[]) {
 		
 		fseek(stream, offset-sizeof(struct segment_command_64), SEEK_CUR);
 	}
-	printf("%zu",section_cmd_cnt);
+	printf("%d",section_cmd_cnt);
 	fseek(stream, sizeof(struct mach_header_64), SEEK_SET);
 	struct section_64* section_commands = malloc(sizeof(section_commands) * section_cmd_cnt);
 	
@@ -169,7 +171,7 @@ int main(int argc, char *argv[]) {
 		}
 		fseek(stream, offset-sizeof(struct segment_command_64), SEEK_CUR);
 	}
-	puts("Segment - Section \t\t\t\t\t[addr\t\tsz\t   offs\t   align reloff\tnreloc\tflags]");
+	puts("Segment - Section \t\t\t\t\t[addr\t\tsz\toffs\talign\treloff\tnreloc\tflags]");
 	for (size_t nsect = 0; nsect < section_cmd_cnt; nsect++) {
 		printf("%lu",nsect+1);
 		printf("%16s\t<==\t%16s\t[0x%012llx 0x%08llx 0x%04x 0x%04x 0x%04x 0x%04x 0x%08x] %s\n",

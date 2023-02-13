@@ -137,7 +137,8 @@
 #define isDylibCached(filetype) ((filetype&0x80000000))
 
 #define LC_REQ_DYLD 0x80000000
-
+#define	LC_SEGMENT	0x1
+#define	LC_SEGMENT_64	0x19
 
 #define SECTION_TYPE							0x000000ff
 #define SECTION_ATTRIBUTES	 					0xffffff00
