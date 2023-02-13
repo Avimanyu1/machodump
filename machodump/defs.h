@@ -137,3 +137,30 @@
 #define isDylibCached(filetype) ((filetype&0x80000000))
 
 #define LC_REQ_DYLD 0x80000000
+
+
+#define SECTION_TYPE							0x000000ff
+#define SECTION_ATTRIBUTES	 					0xffffff00
+#define	S_REGULAR								0x0
+#define	S_ZEROFILL								0x1
+#define	S_CSTRING_LITERALS						0x2
+#define	S_4BYTE_LITERALS						0x3
+#define	S_8BYTE_LITERALS						0x4
+#define	S_LITERAL_POINTERS						0x5
+#define	S_NON_LAZY_SYMBOL_POINTERS				0x6
+#define	S_LAZY_SYMBOL_POINTERS					0x7
+#define	S_SYMBOL_STUBS							0x8
+#define	S_MOD_INIT_FUNC_POINTERS				0x9
+#define	S_MOD_TERM_FUNC_POINTERS				0xa
+#define	S_COALESCED								0xb
+#define	S_GB_ZEROFILL							0xc
+#define	S_INTERPOSING							0xd
+#define	S_16BYTE_LITERALS						0xe
+#define	S_DTRACE_DOF								0xf
+#define	S_LAZY_DYLIB_SYMBOL_POINTERS			0x10
+#define S_THREAD_LOCAL_REGULAR					0x11
+#define S_THREAD_LOCAL_ZEROFILL					0x12
+#define S_THREAD_LOCAL_VARIABLES				0x13
+#define S_THREAD_LOCAL_VARIABLE_POINTERS		0x14
+#define S_THREAD_LOCAL_INIT_FUNCTION_POINTERS	0x15
+#define S_INIT_FUNC_OFFSETS 					x16

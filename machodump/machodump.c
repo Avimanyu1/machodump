@@ -11,7 +11,8 @@ void printFiletype(int);
 void printCPUType(int);
 void *alloc_segcom(void);
 void *alloc_seccom(void);
-char *printCmd(int cmd);
+char *printCmd(int);
+char *printSectionType(int);
 
 static int is64 = 0;
 
@@ -118,10 +119,10 @@ int main(int argc, char *argv[]) {
 	puts("Mach Header :");
 	printf("\n Magic Number:\t%x\t",header.magic);
 	printMagic(header.magic);
-	printf("\n CPU Type:\t%x\t",header.cputype);
+	printf("\n CPU Type:\t0x%x\t",header.cputype);
 	printCPUType(header.cputype);
-	printf("\n CPU Subtype:\t%x",header.cpusubtype);
-	printf("\n Filetype:\t%x",header.filetype);
+	printf("\n CPU Subtype:\t0x%x",header.cpusubtype);
+	printf("\n Filetype:\t0x%x",header.filetype);
 	printFiletype(header.filetype);
 	printf("\n Number of LC:\t%d",header.ncmds);
 	printf("\n LC_SIZE:\t%x [%d]",header.sizeofcmds,header.sizeofcmds);
@@ -136,6 +137,7 @@ int main(int argc, char *argv[]) {
 	for (size_t offset,segcnt = 0; segcnt < header.ncmds ; segcnt++) {
 		fread(&segment_commands[segcnt], sizeof(struct segment_command_64), 1, stream);
 		offset = segment_commands[segcnt].cmdsize;
+		printf("%lu",segcnt);
 		printf("%24s",printCmd(segment_commands[segcnt].cmd));
 		printf("\t%d\t",segment_commands[segcnt].cmdsize);
 		if (*segment_commands[segcnt].segname == 95 && *(segment_commands[segcnt].segname+1) == 95)
@@ -153,6 +155,7 @@ int main(int argc, char *argv[]) {
 		
 		fseek(stream, offset-sizeof(struct segment_command_64), SEEK_CUR);
 	}
+	printf("%zu",section_cmd_cnt);
 	fseek(stream, sizeof(struct mach_header_64), SEEK_SET);
 	struct section_64* section_commands = malloc(sizeof(section_commands) * section_cmd_cnt);
 	
@@ -168,7 +171,8 @@ int main(int argc, char *argv[]) {
 	}
 	puts("Segment - Section \t\t\t\t\t[addr\t\tsz\t   offs\t   align reloff\tnreloc\tflags]");
 	for (size_t nsect = 0; nsect < section_cmd_cnt; nsect++) {
-		printf("%16s\t<==\t%16s\t[0x%012llx 0x%08llx 0x%04x 0x%04x 0x%04x 0x%04x 0x%08x]\n",
+		printf("%lu",nsect+1);
+		printf("%16s\t<==\t%16s\t[0x%012llx 0x%08llx 0x%04x 0x%04x 0x%04x 0x%04x 0x%08x] %s\n",
 			section_commands[nsect].segname,
 			section_commands[nsect].sectname,
 			section_commands[nsect].addr,
@@ -177,11 +181,132 @@ int main(int argc, char *argv[]) {
 			section_commands[nsect].align,
 			section_commands[nsect].reloff,
 			section_commands[nsect].nreloc,
-			section_commands[nsect].flags
+			section_commands[nsect].flags,
+			printSectionType(section_commands[nsect].flags)
 		);
 	}
 }
 
+char *printSectionType(int flag)
+{
+	switch (flag & SECTION_TYPE) {
+		case 0x0:
+		{
+			return "S_REGULAR";
+		}
+		case 0x1:
+			{
+				return "S_ZEROFILL";
+			}
+		case 0x2:
+			{
+				return "S_CSTRING_LITERALS";
+			}
+			
+		case 0x3:
+			{
+				return "S_4BYTE_LITERALS";
+			}
+			
+		case 0x4:
+			{
+				return "S_8BYTE_LITERALS";
+			}
+			
+		case 0x5:
+			{
+				return "S_LITERAL_POINTERS";
+			}
+			
+		case 0x6:
+			{
+				return "S_NON_LAZY_SYMBOL_POINTERS";
+				break;
+			}
+			
+		case 0x7:
+			{
+				return "S_LAZY_SYMBOL_POINTERS";
+			}
+			
+		case 0x8:
+			{
+				return "S_SYMBOL_STUBS";
+			}
+			
+		case 0x9:
+			{
+				return "S_MOD_INIT_FUNC_POINTERS";
+			}
+			
+		case 0xa:
+			{
+				return "S_MOD_TERM_FUNC_POINTERS";
+			}
+			
+		case 0xb:
+			{
+				return "S_COALESCED";
+			}
+			
+		case 0xc:
+			{
+				return "S_GB_ZEROFILL";
+			}
+			
+		case 0xd:
+			{
+				return "S_INTERPOSING";
+			}
+			
+		case 0xe:
+			{
+				return "S_16BYTE_LITERALS";
+			}
+			
+		case 0xf:
+			{
+				return "S_DTRACE_DOF";
+			}
+			
+		case 0x10:
+			{
+				return "S_LAZY_DYLIB_SYMBOL_POINTERS";
+			}
+			
+		case 0x11:
+			{
+				return "S_THREAD_LOCAL_REGULAR";
+			}
+			
+		case 0x12:
+			{
+				return "S_THREAD_LOCAL_ZEROFILL";
+			}
+			
+		case 0x13:
+			{
+				return "S_THREAD_LOCAL_VARIABLES";
+			}
+			
+		case 0x14:
+			{
+				return "S_THREAD_LOCAL_VARIABLE_POINTERS";
+			}
+			
+		case 0x15:
+			{
+				return "S_THREAD_LOCAL_INIT_FUNCTION_POINTERS";
+			}
+			
+		case 0x16:
+			{
+				return "S_INIT_FUNC_OFFSETS";
+			}
+			
+		default: return "Unknown Section type!";
+	}
+}
 char *printCmd(int cmd)
 {
 	switch (cmd) {
@@ -639,3 +764,4 @@ void *alloc_seccom(void)
 		}
 	else  return malloc(sizeof(struct section));
 }
+	
