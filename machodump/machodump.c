@@ -8,146 +8,46 @@
 #include <mach-o/loader.h>
 #include <stdbool.h>
 #include <stdlib.h>
-//#include "tuibox.h"
 
 
 #define MACHODUMP_VERSION 0.01
 
 #define IS_BIG_ENDIAN (!(union { uint16_t u16; unsigned char c; }){ .u16 = 1 }.c)
 
-#define isObject(filetype) ((filetype&0x00000001))
-#define isExecute(filetype) ((filetype&0x00000002))
-#define isFVMLIB(filetype) ((filetype&0x00000003))
-#define isCore(filetype) ((filetype&0x00000004))
-#define isPreLoad(filetype) ((filetype&0x00000005))
-#define isDylib(filetype) ((filetype&0x00000006))
-#define isDyLinkEdit(filetype) ((filetype&0x00000007))
-#define isBundle(filetype) ((filetype&0x00000008))
-#define isDynStub(filetype) ((filetype&0x00000009))
-#define isdbg(filetype) ((filetype&0x0000000A))
-#define isKEXT(filetype) ((filetype&0x0000000B))
-#define isSet(filetype) ((filetype&0x0000000C))
-
-#define hasNoUnDef(filetype) ((filetype&0x1))
-#define hasIncrLink(filetype) ((filetype&0x2))
-#define willDyldLink(filetype) ((filetype&0x4))
-#define willBindAtLoad(filetype) ((filetype&0x8))
-#define hasPrebound(filetype) ((filetype&0x10))
-#define isSplit(filetype) ((filetype&0x20))
-#define willLazyInit(filetype) ((filetype&0x40))
-#define isTwoLevel(filetype) ((filetype&0x80))
-#define isFlat(filetype) ((filetype&0x100))
-#define hasnoMultiDef(filetype) ((filetype&0x200))
-#define noFixPrebind(filetype) ((filetype&0x400))
-#define isPrebindable(filetype) ((filetype&0x800))
-#define modsBounds(filetype) ((filetype&0x1000))
-#define subsectionDivis(filetype) ((filetype&0x2000))
-#define canonicalized(filetype) ((filetype&0x4000))
-#define hasWeakDefs(filetype) ((filetype&0x8000))
-#define hasWeakSymbols(filetype) ((filetype&0x10000))
-#define hasStackExec(filetype) ((filetype&0x20000))
-#define rootUse(filetype) ((filetype&0x40000))
-#define issetuidSafe(filetype) ((filetype&0x80000))
-#define hasNoReExpDyl(filetype) ((filetype&0x100000))
-#define isPIE(filetype) ((filetype&0x200000))
-#define isDeadStrip(filetype) ((filetype&0x400000))
-#define hasTLV_Descr(filetype) ((filetype&0x800000))
-#define hasNoHeapExec(filetype) ((filetype&0x1000000))
-#define isAppExt(filetype) ((filetype&0x02000000))
-#define isNLIST_OOS_W_DI(filetype) ((filetype&0x04000000))
-#define isSIMSupport(filetype) ((filetype&0x08000000))
-#define isDylibCached(filetype) ((filetype&0x80000000))
-
-
 typedef struct mach_header_64 mheader64;
 
 void printFlags(int flags)
 {
 	puts("");
-	if (hasNoUnDef(flags)) {
-		printf("NOUNDEF\t");
-	}
-	if (hasIncrLink(flags)) {
-		printf("INCRLINK\t");
-	}
-	if (willDyldLink(flags)) {
-		printf("DYLDLINK\t");
-	}
-	if (willBindAtLoad(flags)) {
-		printf("BINDATLOAD\t");
-	}
-	if (hasPrebound(flags)) {
-		printf("PREBOUND\t");
-	}
-	if (isSplit(flags)) {
-		printf("SPLITSEGS\t");
-	}
-	if (willLazyInit(flags)) {
-		printf("LAZYINIT\t");
-	}
-	if (isTwoLevel(flags)) {
-		printf("TWOLEVEL\t");
-	}
-	if (isFlat(flags)) {
-		printf("FORCEFLAT\t");
-	}
-	if (hasnoMultiDef(flags)) {
-		printf("NOMULTIDEF\t");
-	}
-	if (noFixPrebind(flags)) {
-		printf("NOFIXPREBIND\t");
-	}
-	if (isPrebindable(flags)) {
-		printf("PREBINDABLE\t");
-	}
-	if (modsBounds(flags)) {
-		printf("ALLMODSBOUND\t");
-	}
-	if (canonicalized(flags)) {
-		printf("CANONICAL\t");
-	}
-	if (hasWeakDefs(flags)) {
-		printf("WEAKDEF\t");
-	}
-	if (hasWeakSymbols(flags)) {
-		printf("WEAKBIND\t");
-	}
-	if (hasStackExec(flags)) {
-		printf("STACKEXEC\t");
-	}
-	if (rootUse(flags)) {
-		printf("ROOTSAFE\t");
-	}
-	if (issetuidSafe(flags)) {
-		printf("SETUIDSAFE\t");
-	}
-	if (hasNoReExpDyl(flags)) {
-		printf("NOREXPDYLIB\t");
-	}
-	if (isPIE(flags)) {
-		printf("PIE\t");
-	}
-	if (isDeadStrip(flags)) {
-		printf("DEADSTRIPDYL\t");
-	}
-	if (hasTLV_Descr(flags)) {
-		printf("HASTLVDESCR\t");
-	}
-	if (hasNoHeapExec(flags)) {
-		printf("NOHEAPEXEC\t");
-	}
-	if (isAppExt(flags)) {
-		printf("APPEXTUSE\t");
-	}
-	if (isNLIST_OOS_W_DI(flags)) {
-		printf("NLISTUNSYNCWDINFO");
-	}
-	if (isSIMSupport(flags)) {
-		printf("SIMSUPP");
-	}
-	if (isDylibCached(flags)) {
-		printf("DYLIBINCACHE");
-	}
+	if (flags & MH_NOUNDEFS)							printf("NOUNDEF\t");
+	if (flags & MH_INCRLINK)							printf("INCRLINK\t");
+	if (flags & MH_DYLDLINK)							printf("DYLDLINK\t");
+	if (flags & MH_BINDATLOAD)						printf("BINDATLOAD\t");
+	if (flags & MH_PREBOUND)							printf("PREBOUND\t");
+	if (flags & MH_SPLIT_SEGS)						printf("SPLITSEGS\t");
+	if (flags & MH_LAZY_INIT)						printf("LAZYINIT\t");
+	if (flags & MH_TWOLEVEL)							printf("TWOLEVEL\t");
+	if (flags & MH_FORCE_FLAT)						printf("FORCEFLAT\t");
+	if (flags & MH_NOMULTIDEFS)						printf("NOMULTIDEF\t");
+	if (flags & MH_NOFIXPREBINDING)					printf("NOFIXPREBIND\t");
+	if (flags & MH_PREBINDABLE)						printf("PREBINDABLE\t");
+	if (flags & MH_ALLMODSBOUND)					printf("ALLMODSBOUND\t");
+	if (flags & MH_CANONICAL)						printf("CANONICAL\t");
+	if (flags & MH_WEAK_DEFINES)					printf("WEAKDEF\t");
+	if (flags & MH_BINDS_TO_WEAK)					printf("WEAKBIND\t");
+	if (flags & MH_ALLOW_STACK_EXECUTION)			printf("STACKEXEC\t");
+	if (flags & MH_ROOT_SAFE)						printf("ROOTSAFE\t");
+	if (flags & MH_SETUID_SAFE)						printf("SETUIDSAFE\t");
+	if (flags & MH_NO_REEXPORTED_DYLIBS)			printf("NOREXPDYLIB\t");
+	if (flags & MH_PIE)								printf("PIE\t");
+	if (flags & MH_DEAD_STRIPPABLE_DYLIB)			printf("DEADSTRIPDYL\t");
+	if (flags & MH_HAS_TLV_DESCRIPTORS)				printf("HASTLVDESCR\t");
+	if (flags & MH_NO_HEAP_EXECUTION)				printf("NOHEAPEXEC\t");
+	if (flags & MH_APP_EXTENSION_SAFE)				printf("APPEXTUSE\t");
+	if (flags & MH_NLIST_OUTOFSYNC_WITH_DYLDINFO)	printf("NLISTUNSYNCWDINFO");
+	if (flags & MH_SIM_SUPPORT)						printf("SIMSUPP");
+	if (flags & MH_DYLIB_IN_CACHE)					printf("DYLIBINCACHE");
+	
 }
 
 
@@ -185,19 +85,19 @@ char *printCPUType(int cputype)
 char *printFiletype(int filetype)
 {
 	switch (filetype) {
-		case MH_OBJECT: return "RELOC OBJ\t";
-		case MH_EXECUTE: return "EXEC\t";
-		case MH_FVMLIB: return "FVM LIB\t";
-		case MH_CORE: return "CORE\t";
-		case MH_PRELOAD: return "PRELOAD\t";
-		case MH_DYLIB: return "DYLIB\t";
-		case MH_DYLINKER: return "DYLINKER\t";
-		case MH_BUNDLE: return "BUNDLE\t";
-		case MH_DYLIB_STUB: return "DYLINB STUB\t";
-		case MH_DSYM: return "DSYM\t";
-		case MH_KEXT_BUNDLE: return "KEXT\t";
-		case MH_FILESET: return "FILESET\t";
-		default: return "Invalid Filetype!";
+		case MH_OBJECT:			return "RELOC OBJ\t";
+		case MH_EXECUTE:			return "EXEC\t";
+		case MH_FVMLIB:			return "FVM LIB\t";
+		case MH_CORE:			return "CORE\t";
+		case MH_PRELOAD:			return "PRELOAD\t";
+		case MH_DYLIB:			return "DYLIB\t";
+		case MH_DYLINKER:		return "DYLINKER\t";
+		case MH_BUNDLE:			return "BUNDLE\t";
+		case MH_DYLIB_STUB:		return "DYLINB STUB\t";
+		case MH_DSYM:			return "DSYM\t";
+		case MH_KEXT_BUNDLE:		return "KEXT\t";
+		case MH_FILESET:			return "FILESET\t";
+		default:				return "Invalid Filetype!";
 	}
 }
 
@@ -218,61 +118,60 @@ void printHeader(mheader64 *header)
 char *printCmd(int cmd)
 {
 	switch (cmd) {
-		case 0x1:return "LC_SEGMENT";
-		case 0x2:return "LC_SYMTAB";
-		case 0x3:return "LC_SYMSEG";
-		case 0x4:return "LC_THREAD";
-		case 0x5:return "LC_UNIXTHREAD";
-		case 0x6:return "LC_LOADFVMLIB";
-		case 0x7:return "LC_IDFVMLIBLC_IDENT";
-		case 0x8:return "LC_IDENT";
-		case 0x9:return "LC_FVMFILE";
-		case 0xa:return "LC_PREPAGE";
-		case 0xb:return "LC_DYSYMTAB";
-		case 0xc:return "LC_LOAD_DYLIB";
-		case 0xd:return "LC_ID_DYLIB";
-		case 0xe:return "LC_LOAD_DYLINKER";
-		case 0xf:return "LC_ID_DYLINKER";
-		case 0x10:return "LC_PREBOUND_DYLIB";
-		case 0x11:return "LC_ROUTINES";
-		case 0x12:return "LC_SUB_FRAMEWORK";
-		case 0x13:return "LC_SUB_UMBRELLA";
-		case 0x14:return "LC_SUB_CLIENT";
-		case 0x15:return "LC_SUB_LIBRARY";
-		case 0x16:return "LC_TWOLEVEL_HINTS";
-		case 0x17:return "LC_PREBIND_CKSUM";
-		case (0x18 | LC_REQ_DYLD):return "LC_LOAD_WEAK_DYLIB";
-		case 0x19:return "LC_SEGMENT_64";
-		case 0x1a:return "LC_ROUTINES_64";
-		case 0x1b:return "LC_UUID";
-		case (0x1c | LC_REQ_DYLD):return "LC_RPATH";
-		case 0x1d:return "LC_CODE_SIGNATURE";
-		case 0x1e:return "LC_SEGMENT_SPLIT_INFO";
-		case (0x1f | LC_REQ_DYLD):return "LC_REEXPORT_DYLIB";
-		case 0x20:return "LC_LAZY_LOAD_DYLIB";
-		case 0x21:return "LC_ENCRYPTION_INFO";
-		case 0x22:return "LC_DYLD_INFO";
-		case (0x22|LC_REQ_DYLD):return "LC_DYLD_INFO_ONLY";
-		case (0x23 | LC_REQ_DYLD):return "LC_LOAD_UPWARD_DYLIB";
-		case 0x24:return "LC_VERSION_MIN_MACOSX";
-		case 0x25:return "LC_VERSION_MIN_IPHONEOS";
-		case 0x26:return "LC_FUNCTION_STARTS";
-		case 0x27:return "LC_DYLD_ENVIRONMENT";
-		case (0x28|LC_REQ_DYLD):return "LC_MAIN";
-		case 0x29:return "LC_DATA_IN_CODE";
-		case 0x2a:return "LC_SOURCE_VERSION";
-		case 0x2b:return "LC_DYLIB_CODE_SIGN_DRS";
-		case 0x2c:return "LC_ENCRYPTION_INFO_64";
-		case 0x2d:return "LC_LINKER_OPTION";
-		case 0x2e:return "LC_LINKER_OPTIMIZATION_HINT";
-		case 0x2f:return "LC_VERSION_MIN_TVOS";
-		case 0x30:return "LC_VERSION_MIN_WATCHOS";
-		case 0x31:return "LC_NOTE";
-		case 0x32:return "LC_BUILD_VERSION";
-		case (0x33 | LC_REQ_DYLD):return "LC_DYLD_EXPORTS_TRIE";
-		case (0x34 | LC_REQ_DYLD):return "LC_DYLD_CHAINED_FIXUPS";
-		case (0x35 | LC_REQ_DYLD):return "LC_FILESET_ENTRY";
-		default: return "Error : No such Load Command exists!";
+		case LC_SEGMENT:						return "LC_SEGMENT";
+		case LC_SYMTAB:						return "LC_SYMTAB";
+		case LC_SYMSEG:						return "LC_SYMSEG";
+		case LC_THREAD:						return "LC_THREAD";
+		case LC_UNIXTHREAD:					return "LC_UNIXTHREAD";
+		case LC_IDFVMLIB:					return "LC_IDFVMLIB";
+		case LC_IDENT:						return "LC_IDENT";
+		case LC_FVMFILE:						return "LC_FVMFILE";
+		case LC_PREPAGE:						return "LC_PREPAGE";
+		case LC_DYSYMTAB:					return "LC_DYSYMTAB";
+		case LC_LOAD_DYLIB:					return "LC_LOAD_DYLIB";
+		case LC_ID_DYLIB:					return "LC_ID_DYLIB";
+		case LC_LOAD_DYLINKER:				return "LC_LOAD_DYLINKER";
+		case LC_ID_DYLINKER:					return "LC_ID_DYLINKER";
+		case LC_PREBOUND_DYLIB:				return "LC_PREBOUND_DYLIB";
+		case LC_ROUTINES:					return "LC_ROUTINES";
+		case LC_SUB_FRAMEWORK:				return "LC_SUB_FRAMEWORK";
+		case LC_SUB_UMBRELLA:				return "LC_SUB_UMBRELLA";
+		case LC_SUB_CLIENT:					return "LC_SUB_CLIENT";
+		case LC_SUB_LIBRARY:					return "LC_SUB_LIBRARY";
+		case LC_TWOLEVEL_HINTS:				return "LC_TWOLEVEL_HINTS";
+		case LC_PREBIND_CKSUM:				return "LC_PREBIND_CKSUM";
+		case LC_LOAD_WEAK_DYLIB:			return "LC_LOAD_WEAK_DYLIB";
+		case LC_SEGMENT_64:					return "LC_SEGMENT_64";
+		case LC_ROUTINES_64:					return "LC_ROUTINES_64";
+		case LC_UUID:						return "LC_UUID";
+		case LC_RPATH:						return "LC_RPATH";
+		case LC_CODE_SIGNATURE:				return "LC_CODE_SIGNATURE";
+		case LC_SEGMENT_SPLIT_INFO:			return "LC_SEGMENT_SPLIT_INFO";
+		case LC_REEXPORT_DYLIB:				return "LC_REEXPORT_DYLIB";
+		case LC_LAZY_LOAD_DYLIB:			return "LC_LAZY_LOAD_DYLIB";
+		case LC_ENCRYPTION_INFO:			return "LC_ENCRYPTION_INFO";
+		case LC_DYLD_INFO:					return "LC_DYLD_INFO";
+		case LC_DYLD_INFO_ONLY:				return "LC_DYLD_INFO_ONLY";
+		case LC_LOAD_UPWARD_DYLIB:			return "LC_LOAD_UPWARD_DYLIB";
+		case LC_VERSION_MIN_MACOSX:			return "LC_VERSION_MIN_MACOSX";
+		case LC_VERSION_MIN_IPHONEOS:		return "LC_VERSION_MIN_IPHONEOS";
+		case LC_FUNCTION_STARTS:			return "LC_FUNCTION_STARTS";
+		case LC_DYLD_ENVIRONMENT:			return "LC_DYLD_ENVIRONMENT";
+		case LC_MAIN:						return "LC_MAIN";
+		case LC_DATA_IN_CODE:				return "LC_DATA_IN_CODE";
+		case LC_SOURCE_VERSION:				return "LC_SOURCE_VERSION";
+		case LC_DYLIB_CODE_SIGN_DRS:		return "LC_DYLIB_CODE_SIGN_DRS";
+		case LC_ENCRYPTION_INFO_64:			return "LC_ENCRYPTION_INFO_64";
+		case LC_LINKER_OPTION:				return "LC_LINKER_OPTION";
+		case LC_LINKER_OPTIMIZATION_HINT:	return "LC_LINKER_OPTIMIZATION_HINT";
+		case LC_VERSION_MIN_TVOS:			return "LC_VERSION_MIN_TVOS";
+		case LC_VERSION_MIN_WATCHOS:		return "LC_VERSION_MIN_WATCHOS";
+		case LC_NOTE:						return "LC_NOTE";
+		case LC_BUILD_VERSION:				return "LC_BUILD_VERSION";
+		case LC_DYLD_EXPORTS_TRIE:			return "LC_DYLD_EXPORTS_TRIE";
+		case LC_DYLD_CHAINED_FIXUPS:		return "LC_DYLD_CHAINED_FIXUPS";
+		case LC_FILESET_ENTRY:				return "LC_FILESET_ENTRY";
+		default:							return "Error : No such Load Command exists!";
 	}
 }
 
@@ -299,6 +198,35 @@ void printLCommands(void *file,mheader64 *header)
 		load_command = (uint64_t)load_command + load_command->cmdsize;
 	}
 }
+char *printSectionType(int flag)
+{
+	switch (flag) {
+		case S_REGULAR:								return "S_REGULAR";
+		case S_ZEROFILL:								return "S_ZEROFILL";
+		case S_CSTRING_LITERALS:					return "S_CSTRING_LITERALS";
+		case S_4BYTE_LITERALS:						return "S_4BYTE_LITERALS";
+		case S_8BYTE_LITERALS:						return "S_8BYTE_LITERALS";
+		case S_LITERAL_POINTERS:					return "S_LITERAL_POINTERS";
+		case S_NON_LAZY_SYMBOL_POINTERS:			return "S_NON_LAZY_SYMBOL_POINTERS";
+		case S_LAZY_SYMBOL_POINTERS:				return "S_LAZY_SYMBOL_POINTERS";
+		case S_SYMBOL_STUBS:							return "S_SYMBOL_STUBS";
+		case S_MOD_INIT_FUNC_POINTERS:				return "S_MOD_INIT_FUNC_POINTERS";
+		case S_MOD_TERM_FUNC_POINTERS:				return "S_MOD_TERM_FUNC_POINTERS";
+		case S_COALESCED:							return "S_COALESCED";
+		case S_GB_ZEROFILL:							return "S_GB_ZEROFILL";
+		case S_INTERPOSING:							return "S_INTERPOSING";
+		case S_16BYTE_LITERALS:						return "S_16BYTE_LITERALS";
+		case S_DTRACE_DOF:							return "S_DTRACE_DOF";
+		case S_LAZY_DYLIB_SYMBOL_POINTERS:			return "S_LAZY_DYLIB_SYMBOL_POINTERS";
+		case S_THREAD_LOCAL_REGULAR:				return "S_THREAD_LOCAL_REGULAR";
+		case S_THREAD_LOCAL_ZEROFILL:				return "S_THREAD_LOCAL_ZEROFILL";
+		case S_THREAD_LOCAL_VARIABLES:				return "S_THREAD_LOCAL_VARIABLES";
+		case S_THREAD_LOCAL_VARIABLE_POINTERS:		return "S_THREAD_LOCAL_VARIABLE_POINTERS";
+		case S_THREAD_LOCAL_INIT_FUNCTION_POINTERS:	return "S_THREAD_LOCAL_INIT_FUNCTION_POINTERS";
+		case S_INIT_FUNC_OFFSETS:					return "S_INIT_FUNC_OFFSETS";
+		default:									return "Unknown Section Type!";
+	}
+}
 void printLCSegment(void *file,mheader64 *header)
 {
 	struct load_command *load_command = file;
@@ -319,8 +247,10 @@ void printLCSegment(void *file,mheader64 *header)
 			);
 			for (size_t sec_cnt = 0; sec_cnt < ((struct segment_command_64 *)load_command)->nsects ; sec_cnt++) {
 				struct section_64 *sec_ptr = (uint64_t)load_command + sizeof(struct segment_command_64) + (sec_cnt * sizeof(struct section_64));
-				printf("\t\t%24s\tvmaddr: 0x%012x\tvmsz: 0x%010llx\talign: 2^%d\tnreloc: %d\n",
+				printf("\t\t%3zu|%24s\t%s\n\t\t\t\tvmaddr: 0x%012llx\tvmsz: 0x%010llx\talign: 2^%d\tnreloc: %d\n",
+					sec_cnt+1,
 					sec_ptr->sectname,
+					printSectionType(SECTION_TYPE & sec_ptr->flags),
 					sec_ptr->addr,
 					sec_ptr->size,
 					sec_ptr->align,
@@ -345,7 +275,7 @@ int main(int argc, char *argv[])
 {
 	unsigned int opt;
 	char		*file	= NULL;
-	FILE 		*handle;
+	FILE 		*handle = NULL;
 	mheader64	*header	= NULL;
 	void *load_commands	= NULL;
 	bool givenFile = false;
@@ -419,6 +349,3 @@ int main(int argc, char *argv[])
 		}
 	}
 }
-
-
-
