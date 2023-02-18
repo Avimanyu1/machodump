@@ -19,14 +19,14 @@ typedef struct mach_header_64 mheader64;
 void printFlags(int flags)
 {
 	puts("");
-	if (flags & MH_NOUNDEFS)							printf("NOUNDEF\t");
-	if (flags & MH_INCRLINK)							printf("INCRLINK\t");
-	if (flags & MH_DYLDLINK)							printf("DYLDLINK\t");
+	if (flags & MH_NOUNDEFS)						printf("NOUNDEF\t");
+	if (flags & MH_INCRLINK)						printf("INCRLINK\t");
+	if (flags & MH_DYLDLINK)						printf("DYLDLINK\t");
 	if (flags & MH_BINDATLOAD)						printf("BINDATLOAD\t");
-	if (flags & MH_PREBOUND)							printf("PREBOUND\t");
+	if (flags & MH_PREBOUND)						printf("PREBOUND\t");
 	if (flags & MH_SPLIT_SEGS)						printf("SPLITSEGS\t");
 	if (flags & MH_LAZY_INIT)						printf("LAZYINIT\t");
-	if (flags & MH_TWOLEVEL)							printf("TWOLEVEL\t");
+	if (flags & MH_TWOLEVEL)						printf("TWOLEVEL\t");
 	if (flags & MH_FORCE_FLAT)						printf("FORCEFLAT\t");
 	if (flags & MH_NOMULTIDEFS)						printf("NOMULTIDEF\t");
 	if (flags & MH_NOFIXPREBINDING)					printf("NOFIXPREBIND\t");
@@ -47,7 +47,6 @@ void printFlags(int flags)
 	if (flags & MH_NLIST_OUTOFSYNC_WITH_DYLDINFO)	printf("NLISTUNSYNCWDINFO");
 	if (flags & MH_SIM_SUPPORT)						printf("SIMSUPP");
 	if (flags & MH_DYLIB_IN_CACHE)					printf("DYLIBINCACHE");
-	
 }
 
 
@@ -86,17 +85,17 @@ char *printFiletype(int filetype)
 {
 	switch (filetype) {
 		case MH_OBJECT:			return "RELOC OBJ\t";
-		case MH_EXECUTE:			return "EXEC\t";
+		case MH_EXECUTE:		return "EXEC\t";
 		case MH_FVMLIB:			return "FVM LIB\t";
 		case MH_CORE:			return "CORE\t";
-		case MH_PRELOAD:			return "PRELOAD\t";
+		case MH_PRELOAD:		return "PRELOAD\t";
 		case MH_DYLIB:			return "DYLIB\t";
 		case MH_DYLINKER:		return "DYLINKER\t";
 		case MH_BUNDLE:			return "BUNDLE\t";
 		case MH_DYLIB_STUB:		return "DYLINB STUB\t";
 		case MH_DSYM:			return "DSYM\t";
-		case MH_KEXT_BUNDLE:		return "KEXT\t";
-		case MH_FILESET:			return "FILESET\t";
+		case MH_KEXT_BUNDLE:	return "KEXT\t";
+		case MH_FILESET:		return "FILESET\t";
 		default:				return "Invalid Filetype!";
 	}
 }
@@ -118,31 +117,31 @@ void printHeader(mheader64 *header)
 char *printCmd(int cmd)
 {
 	switch (cmd) {
-		case LC_SEGMENT:						return "LC_SEGMENT";
+		case LC_SEGMENT:					return "LC_SEGMENT";
 		case LC_SYMTAB:						return "LC_SYMTAB";
 		case LC_SYMSEG:						return "LC_SYMSEG";
 		case LC_THREAD:						return "LC_THREAD";
 		case LC_UNIXTHREAD:					return "LC_UNIXTHREAD";
 		case LC_IDFVMLIB:					return "LC_IDFVMLIB";
 		case LC_IDENT:						return "LC_IDENT";
-		case LC_FVMFILE:						return "LC_FVMFILE";
-		case LC_PREPAGE:						return "LC_PREPAGE";
+		case LC_FVMFILE:					return "LC_FVMFILE";
+		case LC_PREPAGE:					return "LC_PREPAGE";
 		case LC_DYSYMTAB:					return "LC_DYSYMTAB";
 		case LC_LOAD_DYLIB:					return "LC_LOAD_DYLIB";
 		case LC_ID_DYLIB:					return "LC_ID_DYLIB";
 		case LC_LOAD_DYLINKER:				return "LC_LOAD_DYLINKER";
-		case LC_ID_DYLINKER:					return "LC_ID_DYLINKER";
+		case LC_ID_DYLINKER:				return "LC_ID_DYLINKER";
 		case LC_PREBOUND_DYLIB:				return "LC_PREBOUND_DYLIB";
 		case LC_ROUTINES:					return "LC_ROUTINES";
 		case LC_SUB_FRAMEWORK:				return "LC_SUB_FRAMEWORK";
 		case LC_SUB_UMBRELLA:				return "LC_SUB_UMBRELLA";
 		case LC_SUB_CLIENT:					return "LC_SUB_CLIENT";
-		case LC_SUB_LIBRARY:					return "LC_SUB_LIBRARY";
+		case LC_SUB_LIBRARY:				return "LC_SUB_LIBRARY";
 		case LC_TWOLEVEL_HINTS:				return "LC_TWOLEVEL_HINTS";
 		case LC_PREBIND_CKSUM:				return "LC_PREBIND_CKSUM";
 		case LC_LOAD_WEAK_DYLIB:			return "LC_LOAD_WEAK_DYLIB";
 		case LC_SEGMENT_64:					return "LC_SEGMENT_64";
-		case LC_ROUTINES_64:					return "LC_ROUTINES_64";
+		case LC_ROUTINES_64:				return "LC_ROUTINES_64";
 		case LC_UUID:						return "LC_UUID";
 		case LC_RPATH:						return "LC_RPATH";
 		case LC_CODE_SIGNATURE:				return "LC_CODE_SIGNATURE";
@@ -188,12 +187,21 @@ void printLCommands(void *file,mheader64 *header)
 {
 	struct load_command *load_command = file;
 	for (size_t LC_cnt = 0; LC_cnt < header->ncmds; LC_cnt++) {
-		printf("%3zu|\t0x%8x\t%27s\t%5x[%6d]\t%s\n",
+		printf("%3zu|\t0x%8x\t%27s\t%4x[%5d]\t%s%s%s\n",
 			LC_cnt+1,load_command->cmd,
 			printCmd(load_command->cmd),
 			load_command->cmdsize,
 			load_command->cmdsize,
-			(load_command->cmd == LC_SEGMENT_64) ? ((struct segment_command_64 *)load_command)->segname : ""
+			
+			(load_command->cmd == LC_SEGMENT_64) ? ((struct segment_command_64 *)load_command)->segname : "",
+			
+			(load_command->cmd == LC_ID_DYLIB || load_command->cmd ==  LC_LOAD_DYLIB || load_command->cmd ==  LC_LOAD_WEAK_DYLIB || load_command->cmd ==  LC_LOAD_UPWARD_DYLIB || load_command->cmd ==  LC_REEXPORT_DYLIB ) ? 
+			((((struct dylib_command *)load_command)->dylib).name.offset + ((uint64_t)load_command)) : "",
+			
+			(load_command->cmd == LC_ID_DYLINKER || load_command->cmd ==  LC_LOAD_DYLINKER || load_command->cmd ==  LC_DYLD_ENVIRONMENT ) ? 
+			((((struct dylinker_command *)load_command)->name).offset + ((uint64_t)load_command)) : ""
+			
+			
 		);
 		load_command = (uint64_t)load_command + load_command->cmdsize;
 	}
@@ -202,14 +210,14 @@ char *printSectionType(int flag)
 {
 	switch (flag) {
 		case S_REGULAR:								return "S_REGULAR";
-		case S_ZEROFILL:								return "S_ZEROFILL";
+		case S_ZEROFILL:							return "S_ZEROFILL";
 		case S_CSTRING_LITERALS:					return "S_CSTRING_LITERALS";
 		case S_4BYTE_LITERALS:						return "S_4BYTE_LITERALS";
 		case S_8BYTE_LITERALS:						return "S_8BYTE_LITERALS";
 		case S_LITERAL_POINTERS:					return "S_LITERAL_POINTERS";
 		case S_NON_LAZY_SYMBOL_POINTERS:			return "S_NON_LAZY_SYMBOL_POINTERS";
 		case S_LAZY_SYMBOL_POINTERS:				return "S_LAZY_SYMBOL_POINTERS";
-		case S_SYMBOL_STUBS:							return "S_SYMBOL_STUBS";
+		case S_SYMBOL_STUBS:						return "S_SYMBOL_STUBS";
 		case S_MOD_INIT_FUNC_POINTERS:				return "S_MOD_INIT_FUNC_POINTERS";
 		case S_MOD_TERM_FUNC_POINTERS:				return "S_MOD_TERM_FUNC_POINTERS";
 		case S_COALESCED:							return "S_COALESCED";
@@ -227,6 +235,7 @@ char *printSectionType(int flag)
 		default:									return "Unknown Section Type!";
 	}
 }
+
 void printLCSegment(void *file,mheader64 *header)
 {
 	struct load_command *load_command = file;
@@ -247,15 +256,15 @@ void printLCSegment(void *file,mheader64 *header)
 			);
 			for (size_t sec_cnt = 0; sec_cnt < ((struct segment_command_64 *)load_command)->nsects ; sec_cnt++) {
 				struct section_64 *sec_ptr = (uint64_t)load_command + sizeof(struct segment_command_64) + (sec_cnt * sizeof(struct section_64));
-				printf("\t\t%3zu|%24s\t%s\n\t\t\t\tvmaddr: 0x%012llx\tvmsz: 0x%010llx\talign: 2^%d\tnreloc: %d\n",
+				printf("\t\t%3zu|%24s\t%s\n\t\t\t\tvmaddr: 0x%012llx-%llx\tvmsz: 0x%05llx\talign: 2^%d\tnreloc: %d\n",
 					sec_cnt+1,
 					sec_ptr->sectname,
 					printSectionType(SECTION_TYPE & sec_ptr->flags),
 					sec_ptr->addr,
+					(sec_ptr->addr)+sec_ptr->size,
 					sec_ptr->size,
 					sec_ptr->align,
-					sec_ptr->nreloc
-					
+					sec_ptr->nreloc	
 				);
 			}
 		}
@@ -282,7 +291,6 @@ int main(int argc, char *argv[])
 	
 	while ((opt = getopt(argc, argv, "f:Hhvcas")) != -1) {
 		switch (opt) {
-			case 'a':
 			case 'f':
 				{
 					if (optarg) {
@@ -299,6 +307,7 @@ int main(int argc, char *argv[])
 					printf("MachODump version : %1.2f\n",MACHODUMP_VERSION);
 					break;
 				}
+			case 'a':
 			case 'h':
 				{
 					if (givenFile) {
