@@ -1,582 +1,66 @@
-#include <stdio.h>
-#include <stdlib.h>
 #include <unistd.h>
+#include <stdio.h>
+#include <stdint.h>
 #include <mach/machine.h>
 #include <mach/vm_prot.h>
-#include "defs.h"
-#include <string.h>
-
-void printFlags(int);
-void printMagic(int);
-void printFiletype(int);
-void printCPUType(int);
-void *alloc_segcom(void);
-void *alloc_seccom(void);
-char *printCmd(int);
-char *printSectionType(int);
-
-static int is64 = 0;
-
-struct mach_header {
-	uint32_t		magic;		/* mach magic number identifier */
-	cpu_type_t		cputype;	/* cpu specifier */
-	cpu_subtype_t	cpusubtype;	/* machine specifier */
-	uint32_t		filetype;	/* type of file */
-	uint32_t		ncmds;		/* number of load commands */
-	uint32_t		sizeofcmds;	/* the size of all the load commands */
-	uint32_t		flags;		/* flags */
-};
-struct mach_header_64 {
-	uint32_t		magic;		/* mach magic number identifier */
-	cpu_type_t		cputype;	/* cpu specifier */
-	cpu_subtype_t	cpusubtype;	/* machine specifier */
-	uint32_t		filetype;	/* type of file */
-	uint32_t		ncmds;		/* number of load commands */
-	uint32_t		sizeofcmds;	/* the size of all the load commands */
-	uint32_t		flags;		/* flags */
-	uint32_t		reserved;	/* reserved */
-};
-
-struct segment_command {
-	uint32_t 	 cmd;
-	uint32_t 	 cmdsize;
-	char     	 segname[16];
-	uint32_t 	 vmaddr;
-	uint32_t 	 vmsize;
-	uint32_t 	 fileoff;
-	uint32_t 	 filesize;
-	vm_prot_t	 maxprot;
-	vm_prot_t 	initprot;
-	uint32_t 	 nsects;
-	uint32_t 	 flags;
-};
-
-struct segment_command_64 { /* for 64-bit architectures */
-	uint32_t	cmd;		/* LC_SEGMENT_64 */
-	uint32_t	cmdsize;	/* includes sizeof section_64 structs */
-	char		segname[16];	/* segment name */
-	uint64_t	vmaddr;		/* memory address of this segment */
-	uint64_t	vmsize;		/* memory size of this segment */
-	uint64_t	fileoff;	/* file offset of this segment */
-	uint64_t	filesize;	/* amount to map from the file */
-	vm_prot_t	maxprot;	/* maximum VM protection */
-	vm_prot_t	initprot;	/* initial VM protection */
-	uint32_t	nsects;		/* number of sections in segment */
-	uint32_t	flags;		/* flags */
-};
-
-struct section { /* for 32-bit architectures */
-    char        sectname[16];    /* name of this section */
-    char        segname[16];    /* segment this section goes in */
-    uint32_t    addr;        /* memory address of this section */
-    uint32_t    size;        /* size in bytes of this section */
-    uint32_t    offset;        /* file offset of this section */
-    uint32_t    align;        /* section alignment (power of 2) */
-    uint32_t    reloff;        /* file offset of relocation entries */
-    uint32_t    nreloc;        /* number of relocation entries */
-    uint32_t    flags;        /* flags (section type and attributes)*/
-    uint32_t    reserved1;    /* reserved (for offset or index) */
-    uint32_t    reserved2;    /* reserved (for count or sizeof) */
-};
-
-struct section_64 { /* for 64-bit architectures */
-    char        sectname[16];    /* name of this section */
-    char        segname[16];    /* segment this section goes in */
-    uint64_t    addr;        /* memory address of this section */
-    uint64_t    size;        /* size in bytes of this section */
-    uint32_t    offset;        /* file offset of this section */
-    uint32_t    align;        /* section alignment (power of 2) */
-    uint32_t    reloff;        /* file offset of relocation entries */
-    uint32_t    nreloc;        /* number of relocation entries */
-    uint32_t    flags;        /* flags (section type and attributes)*/
-    uint32_t    reserved1;    /* reserved (for offset or index) */
-    uint32_t    reserved2;    /* reserved (for count or sizeof) */
-    uint32_t    reserved3;    /* reserved */
-};
-
-struct load_command {
-	uint32_t cmd;		/* type of load command */
-	uint32_t cmdsize;	/* total size of command in bytes */
-};
+#include <mach/machine/thread_status.h>
+#include <architecture/byte_order.h>
+#include <mach-o/loader.h>
+#include <stdbool.h>
+#include <stdlib.h>
+//#include "tuibox.h"
 
 
+#define MACHODUMP_VERSION 0.01
+
+#define IS_BIG_ENDIAN (!(union { uint16_t u16; unsigned char c; }){ .u16 = 1 }.c)
+
+#define isObject(filetype) ((filetype&0x00000001))
+#define isExecute(filetype) ((filetype&0x00000002))
+#define isFVMLIB(filetype) ((filetype&0x00000003))
+#define isCore(filetype) ((filetype&0x00000004))
+#define isPreLoad(filetype) ((filetype&0x00000005))
+#define isDylib(filetype) ((filetype&0x00000006))
+#define isDyLinkEdit(filetype) ((filetype&0x00000007))
+#define isBundle(filetype) ((filetype&0x00000008))
+#define isDynStub(filetype) ((filetype&0x00000009))
+#define isdbg(filetype) ((filetype&0x0000000A))
+#define isKEXT(filetype) ((filetype&0x0000000B))
+#define isSet(filetype) ((filetype&0x0000000C))
+
+#define hasNoUnDef(filetype) ((filetype&0x1))
+#define hasIncrLink(filetype) ((filetype&0x2))
+#define willDyldLink(filetype) ((filetype&0x4))
+#define willBindAtLoad(filetype) ((filetype&0x8))
+#define hasPrebound(filetype) ((filetype&0x10))
+#define isSplit(filetype) ((filetype&0x20))
+#define willLazyInit(filetype) ((filetype&0x40))
+#define isTwoLevel(filetype) ((filetype&0x80))
+#define isFlat(filetype) ((filetype&0x100))
+#define hasnoMultiDef(filetype) ((filetype&0x200))
+#define noFixPrebind(filetype) ((filetype&0x400))
+#define isPrebindable(filetype) ((filetype&0x800))
+#define modsBounds(filetype) ((filetype&0x1000))
+#define subsectionDivis(filetype) ((filetype&0x2000))
+#define canonicalized(filetype) ((filetype&0x4000))
+#define hasWeakDefs(filetype) ((filetype&0x8000))
+#define hasWeakSymbols(filetype) ((filetype&0x10000))
+#define hasStackExec(filetype) ((filetype&0x20000))
+#define rootUse(filetype) ((filetype&0x40000))
+#define issetuidSafe(filetype) ((filetype&0x80000))
+#define hasNoReExpDyl(filetype) ((filetype&0x100000))
+#define isPIE(filetype) ((filetype&0x200000))
+#define isDeadStrip(filetype) ((filetype&0x400000))
+#define hasTLV_Descr(filetype) ((filetype&0x800000))
+#define hasNoHeapExec(filetype) ((filetype&0x1000000))
+#define isAppExt(filetype) ((filetype&0x02000000))
+#define isNLIST_OOS_W_DI(filetype) ((filetype&0x04000000))
+#define isSIMSupport(filetype) ((filetype&0x08000000))
+#define isDylibCached(filetype) ((filetype&0x80000000))
 
 
-int main(int argc, char *argv[]) {
-	if (argc < 2 || argc > 3)
-		{
-			puts("Invalid options passed!\nUsage : ./macho <file>");
-			return 1;
-		}
-	FILE *stream = fopen(argv[1], "r");
-	if (stream == NULL)
-		{
-		fprintf(stderr,"\nError opening the file\n");
-		_exit(1);
-		}
-	fseek(stream,0,SEEK_SET);
-	struct mach_header_64 header;
-	fread(&header, sizeof(struct mach_header_64), 1, stream);
-	puts("Mach Header :");
-	printf("\n Magic Number:\t%x\t",header.magic);
-	printMagic(header.magic);
-	printf("\n CPU Type:\t0x%x\t",header.cputype);
-	printCPUType(header.cputype);
-	printf("\n CPU Subtype:\t0x%x",header.cpusubtype);
-	printf("\n Filetype:\t0x%x",header.filetype);
-	printFiletype(header.filetype);
-	printf("\n Number of LC:\t%d",header.ncmds);
-	printf("\n LC_SIZE:\t%x [%d]",header.sizeofcmds,header.sizeofcmds);
-	printf("\n Flags:\t0x%x",header.flags);
-	printFlags(header.flags);
-	printf("\n Reserved:\t%x\n",header.reserved);
-	puts("Load Commands :");
-	
-	struct segment_command_64* segment_commands = malloc(sizeof(struct segment_command_64) * header.ncmds);
-	memset(segment_commands, 0, sizeof(struct segment_command_64) * header.ncmds);
-    unsigned int section_cmd_cnt = 0;
-	
-	for (size_t offset,segcnt = 0; segcnt < header.ncmds ; segcnt++) {
-		fread(&segment_commands[segcnt], sizeof(struct segment_command_64), 1, stream);
-		offset = segment_commands[segcnt].cmdsize;
-		printf("%lu",segcnt);
-		printf("%24s",printCmd(segment_commands[segcnt].cmd));
-		printf("\t%d\t",segment_commands[segcnt].cmdsize);
-		if (segment_commands[segcnt].cmd == LC_SEGMENT_64)
-			{
-				printf("%16s\t",segment_commands[segcnt].segname);
-				printf("vmadr: 0x%012llx\tvmsz: 0x%012llx\t floff: 0x%04llx\tflsz: 0x%6llx\tnsect: %d\n",
-					segment_commands[segcnt].vmaddr,
-					segment_commands[segcnt].vmsize,
-					segment_commands[segcnt].fileoff,
-					segment_commands[segcnt].filesize,
-					segment_commands[segcnt].nsects);
-				section_cmd_cnt += segment_commands[segcnt].nsects;
-			}
-		else puts("");
-		
-		fseek(stream, offset-sizeof(struct segment_command_64), SEEK_CUR);
-	}
-	printf("%d",section_cmd_cnt);
-	fseek(stream, sizeof(struct mach_header_64), SEEK_SET);
-	struct section_64* section_commands = malloc(sizeof(section_commands) * section_cmd_cnt);
-	
-	for (size_t offset,seccount = 0,segcnt = 0; segcnt < header.ncmds ; segcnt++) {
-		fseek(stream, sizeof(struct segment_command_64), SEEK_CUR);
-		offset = segment_commands[segcnt].cmdsize;
-		if (segment_commands[segcnt].nsects) {
-			fread(&section_commands[seccount], sizeof(struct section_64), segment_commands[segcnt].nsects, stream);
-			seccount += segment_commands[segcnt].nsects;
-			fseek(stream, -(sizeof(struct section_64) * segment_commands[segcnt].nsects), SEEK_CUR);
-		}
-		fseek(stream, offset-sizeof(struct segment_command_64), SEEK_CUR);
-	}
-	puts("Segment - Section \t\t\t\t\t[addr\t\tsz\toffs\talign\treloff\tnreloc\tflags]");
-	for (size_t nsect = 0; nsect < section_cmd_cnt; nsect++) {
-		printf("%lu",nsect+1);
-		printf("%16s\t<==\t%16s\t[0x%012llx 0x%08llx 0x%04x 0x%04x 0x%04x 0x%04x 0x%08x] %s\n",
-			section_commands[nsect].segname,
-			section_commands[nsect].sectname,
-			section_commands[nsect].addr,
-			section_commands[nsect].size,
-			section_commands[nsect].offset,
-			section_commands[nsect].align,
-			section_commands[nsect].reloff,
-			section_commands[nsect].nreloc,
-			section_commands[nsect].flags,
-			printSectionType(section_commands[nsect].flags)
-		);
-	}
-}
+typedef struct mach_header_64 mheader64;
 
-char *printSectionType(int flag)
-{
-	switch (flag & SECTION_TYPE) {
-		case 0x0:
-		{
-			return "S_REGULAR";
-		}
-		case 0x1:
-			{
-				return "S_ZEROFILL";
-			}
-		case 0x2:
-			{
-				return "S_CSTRING_LITERALS";
-			}
-			
-		case 0x3:
-			{
-				return "S_4BYTE_LITERALS";
-			}
-			
-		case 0x4:
-			{
-				return "S_8BYTE_LITERALS";
-			}
-			
-		case 0x5:
-			{
-				return "S_LITERAL_POINTERS";
-			}
-			
-		case 0x6:
-			{
-				return "S_NON_LAZY_SYMBOL_POINTERS";
-				break;
-			}
-			
-		case 0x7:
-			{
-				return "S_LAZY_SYMBOL_POINTERS";
-			}
-			
-		case 0x8:
-			{
-				return "S_SYMBOL_STUBS";
-			}
-			
-		case 0x9:
-			{
-				return "S_MOD_INIT_FUNC_POINTERS";
-			}
-			
-		case 0xa:
-			{
-				return "S_MOD_TERM_FUNC_POINTERS";
-			}
-			
-		case 0xb:
-			{
-				return "S_COALESCED";
-			}
-			
-		case 0xc:
-			{
-				return "S_GB_ZEROFILL";
-			}
-			
-		case 0xd:
-			{
-				return "S_INTERPOSING";
-			}
-			
-		case 0xe:
-			{
-				return "S_16BYTE_LITERALS";
-			}
-			
-		case 0xf:
-			{
-				return "S_DTRACE_DOF";
-			}
-			
-		case 0x10:
-			{
-				return "S_LAZY_DYLIB_SYMBOL_POINTERS";
-			}
-			
-		case 0x11:
-			{
-				return "S_THREAD_LOCAL_REGULAR";
-			}
-			
-		case 0x12:
-			{
-				return "S_THREAD_LOCAL_ZEROFILL";
-			}
-			
-		case 0x13:
-			{
-				return "S_THREAD_LOCAL_VARIABLES";
-			}
-			
-		case 0x14:
-			{
-				return "S_THREAD_LOCAL_VARIABLE_POINTERS";
-			}
-			
-		case 0x15:
-			{
-				return "S_THREAD_LOCAL_INIT_FUNCTION_POINTERS";
-			}
-			
-		case 0x16:
-			{
-				return "S_INIT_FUNC_OFFSETS";
-			}
-			
-		default: return "Unknown Section type!";
-	}
-}
-char *printCmd(int cmd)
-{
-	switch (cmd) {
-		case 0x1:
-			{
-				return "LC_SEGMENT";
-			}
-		case 0x2:
-			{
-				return "LC_SYMTAB";
-			}
-			
-		case 0x3:
-			{
-				return "LC_SYMSEG";
-			}
-			
-		case 0x4:
-			{
-				return "LC_THREAD";
-			}
-			
-		case 0x5:
-			{
-				return "LC_UNIXTHREAD";
-			}
-			
-		case 0x6:
-			{
-				return "LC_LOADFVMLIB";
-				break;
-			}
-			
-		case 0x7:
-			{
-				return "LC_IDFVMLIBLC_IDENT";
-			}
-			
-		case 0x8:
-			{
-				return "LC_IDENT";
-			}
-			
-		case 0x9:
-			{
-				return "LC_FVMFILE";
-			}
-			
-		case 0xa:
-			{
-				return "LC_PREPAGE";
-			}
-			
-		case 0xb:
-			{
-				return "LC_DYSYMTAB";
-			}
-			
-		case 0xc:
-			{
-				return "LC_LOAD_DYLIB";
-			}
-			
-		case 0xd:
-			{
-				return "LC_ID_DYLIB";
-			}
-			
-		case 0xe:
-			{
-				return "LC_LOAD_DYLINKER";
-			}
-			
-		case 0xf:
-			{
-				return "LC_ID_DYLINKER";
-			}
-			
-		case 0x10:
-			{
-				return "LC_PREBOUND_DYLIB";
-			}
-			
-		case 0x11:
-			{
-				return "LC_ROUTINES";
-			}
-			
-		case 0x12:
-			{
-				return "LC_SUB_FRAMEWORK";
-			}
-			
-		case 0x13:
-			{
-				return "LC_SUB_UMBRELLA";
-			}
-		case 0x14:
-			{
-				return "LC_SUB_CLIENT";
-			}
-		case 0x15:
-			{
-				return "LC_SUB_LIBRARY";
-			}
-			
-		case 0x16:
-			{
-				return "LC_TWOLEVEL_HINTS";
-			}
-			
-		case 0x17:
-			{
-				return "LC_PREBIND_CKSUM";
-			}
-			
-		case (0x18 | LC_REQ_DYLD):
-			{
-				return "LC_LOAD_WEAK_DYLIB";
-			}
-			
-		case 0x19:
-			{
-				return "LC_SEGMENT_64";
-			}
-			
-		case 0x1a:
-			{
-				return "LC_ROUTINES_64";
-			}
-			
-		case 0x1b:
-			{
-				return "LC_UUID";
-			}
-			
-		case (0x1c | LC_REQ_DYLD):
-			{
-				return "LC_RPATH";
-			}
-			
-		case 0x1d:
-			{
-				return "LC_CODE_SIGNATURE";
-			}
-			
-		case 0x1e:
-			{
-				return "LC_SEGMENT_SPLIT_INFO";
-			}
-			
-		case (0x1f | LC_REQ_DYLD):
-			{
-				return "LC_REEXPORT_DYLIB";
-			}
-			
-		case 0x20:
-			{
-				return "LC_LAZY_LOAD_DYLIB";
-			}
-			
-		case 0x21:
-			{
-				return "LC_ENCRYPTION_INFO";
-			}
-			
-		case 0x22:
-			{
-				return "LC_DYLD_INFO";
-			}
-		case (0x22|LC_REQ_DYLD):
-			{
-				return "LC_DYLD_INFO_ONLY";
-			}
-		case (0x23 | LC_REQ_DYLD):
-			{
-				return "LC_LOAD_UPWARD_DYLIB";
-			}
-			
-		case 0x24:
-			{
-				return "LC_VERSION_MIN_MACOSX";
-			}
-			
-		case 0x25:
-			{
-				return "LC_VERSION_MIN_IPHONEOS";
-			}
-			
-		case 0x26:
-			{
-				return "LC_FUNCTION_STARTS";
-			}
-		case 0x27:
-			{
-				return "LC_DYLD_ENVIRONMENT";
-			}
-			
-		case (0x28|LC_REQ_DYLD):
-			{
-				return "LC_MAIN";
-			}
-			
-		case 0x29:
-			{
-				return "LC_DATA_IN_CODE";
-			}
-			
-		case 0x2a:
-			{
-				return "LC_SOURCE_VERSION";
-			}
-			
-		case 0x2b:
-			{
-				return "LC_DYLIB_CODE_SIGN_DRS";
-			}
-		case 0x2c:
-			{
-				return "LC_ENCRYPTION_INFO_64";
-			}
-			
-		case 0x2d:
-			{
-				return "LC_LINKER_OPTION";
-			}
-			
-		case 0x2e:
-			{
-				return "LC_LINKER_OPTIMIZATION_HINT";
-			}
-			
-		case 0x2f:
-			{
-				return "LC_VERSION_MIN_TVOS";
-			}
-		case 0x30:
-			{
-				return "LC_VERSION_MIN_WATCHOS";
-			}
-			
-		case 0x31:
-			{
-				return "LC_NOTE";
-			}
-			
-		case 0x32:
-			{
-				return "LC_BUILD_VERSION";
-			}			
-		case (0x33 | LC_REQ_DYLD):
-			{
-				return "LC_DYLD_EXPORTS_TRIE";
-			}
-			
-		case (0x34 | LC_REQ_DYLD):
-			{
-				return "LC_DYLD_CHAINED_FIXUPS";
-			}			
-		case (0x35 | LC_REQ_DYLD):
-			{
-				return "LC_FILESET_ENTRY";
-			}
-		default: {
-			return "Error : No such Load Command exists!";
-		}
-	}
-}
 void printFlags(int flags)
 {
 	puts("");
@@ -666,104 +150,275 @@ void printFlags(int flags)
 	}
 }
 
-void printMagic(int magic)
+
+void printHelp(void)
+{
+	puts("Usage: ./machodump [-f file] [-hvc]");
+	puts("h:\tPrint MachO header");
+	puts("c:\tPrint MachO load commands");
+	puts("v:\tPrint MachODump version");
+	puts("H:\tPrint help menu");
+	return;
+}
+char *printMagic(int magic)
 {
 	switch (magic) {
-		case MH_MAGIC:
-			{	
-				printf("MH_MAGIC (32 bit) MachO");
-				break;
-			};
-		case MH_MAGIC_64:
-			{
-				is64 = 1;
-				printf("MH_MAGIC_64 (64 bit) MachO");
-				break;
-			};
-		case MH_CIGAM:
-			{
-				printf("MH_CIGAM (32 bit) MachO\t");
-				if (IS_BIG_ENDIAN) printf("Little Endian");
-				else printf("Big Endian");
-				break;
-			};
-		case MH_CIGAM_64: 
-			{
-				is64 = 1;
-				printf("MH_CIGAM_64 (64 bit) MachO");
-				if (IS_BIG_ENDIAN) printf("Little Endian");
-				else printf("Big Endian");
-				break;
-			};
-		default: printf("Invalid Magic Number Detected! %x", magic);
+		case MH_MAGIC:				return "MH_MAGIC (32 bit) MachO";
+		case MH_MAGIC_64:			return "MH_MAGIC_64 (64 bit) MachO";
+		case MH_CIGAM:				return "MH_CIGAM (32 bit) MachO";
+		case MH_CIGAM_64:			return "MH_CIGAM_64 (64 bit) MachO";
+		default: 					return "Invalid Magic Number Detected!";
 	}
 }
 
-void printFiletype(int filetype)
-{
-	puts("");
-	switch (filetype) {
-		case MH_OBJECT: printf("RELOC OBJ\t"); break;
-		case MH_EXECUTE: printf("EXEC\t"); break;
-		case MH_FVMLIB: printf("FVM LIB\t"); break;
-		case MH_CORE: printf("CORE\t"); break;
-		case MH_PRELOAD: printf("PRELOAD\t"); break;
-		case MH_DYLIB: printf("DYLIB\t"); break;
-		case MH_DYLINKER: printf("DYLINKER\t"); break;
-		case MH_BUNDLE: printf("BUNDLE\t"); break;
-		case MH_DYLIB_STUB: printf("DYLINB STUB\t"); break;
-		case MH_DSYM: printf("DSYM\t"); break;
-		case MH_KEXT_BUNDLE: printf("KEXT\t"); break;
-		case MH_FILESET: printf("FILESET\t"); break;
-		default: printf("Invalid Filetype!");
-	}
-}
-
-void printCPUType(int cputype)
+char *printCPUType(int cputype)
 {
 	switch (cputype) {
-		case CPU_TYPE_X86: 
-			{
-				printf("x86");
-				break;
-			}
-		case CPU_TYPE_X86_64: 
-			{
-				printf("x86_64");
-				break;
-			}
-		case CPU_TYPE_ARM: 
-			{
-				printf("ARM");
-				break;
-			}
-		case CPU_TYPE_ARM64_32: 
-			{
-				printf("ARM64_32");
-				break;
-			}
-		case CPU_TYPE_ARM64: 
-			{
-				printf("ARM64");
-				break;
-			}
-		default: printf("What even is this?");
+		case CPU_TYPE_X86:		return "x86";
+		case CPU_TYPE_X86_64:	return "x86_64";
+		case CPU_TYPE_ARM:		return "ARM";
+		case CPU_TYPE_ARM64_32:	return "ARM64_32";
+		case CPU_TYPE_ARM64:	return "ARM64";
+		default:				return "What even is this?";
 	}
 }
-void *alloc_segcom(void)
+char *printFiletype(int filetype)
 {
-	if (is64)
-		{
-			return malloc(sizeof(struct segment_command_64) * 16);
-		}
-	else  return malloc(sizeof(struct segment_command) * 16);
+	switch (filetype) {
+		case MH_OBJECT: return "RELOC OBJ\t";
+		case MH_EXECUTE: return "EXEC\t";
+		case MH_FVMLIB: return "FVM LIB\t";
+		case MH_CORE: return "CORE\t";
+		case MH_PRELOAD: return "PRELOAD\t";
+		case MH_DYLIB: return "DYLIB\t";
+		case MH_DYLINKER: return "DYLINKER\t";
+		case MH_BUNDLE: return "BUNDLE\t";
+		case MH_DYLIB_STUB: return "DYLINB STUB\t";
+		case MH_DSYM: return "DSYM\t";
+		case MH_KEXT_BUNDLE: return "KEXT\t";
+		case MH_FILESET: return "FILESET\t";
+		default: return "Invalid Filetype!";
+	}
 }
-void *alloc_seccom(void)
+
+void printHeader(mheader64 *header)
 {
-	if (is64)
-		{
-			return malloc(sizeof(struct section_64));
-		}
-	else  return malloc(sizeof(struct section));
+	printf("Mach Header->");
+	printf("\nMagic:\t\t%8x\t%s %s",header->magic,printMagic(header->magic),IS_BIG_ENDIAN ? "BE" : "LE");
+	printf("\nCPU type:\t0x%x\t%s",header->cputype,printCPUType(header->cputype));
+	printf("\nSubtype:\t0x%x",header->cpusubtype);
+	printf("\nFiletype:\t0x%x\t%s",header->filetype,printFiletype(header->filetype));
+	printf("\nLC Count:\t%d",header->ncmds);
+	printf("\nLC Size:\t%x [%d]",header->sizeofcmds,header->sizeofcmds);
+	printf("\nFlags:\t\t0x%08x",header->flags);
+	printFlags(header->flags);
+	printf("\nReserved:\t%x\n",header->reserved);
 }
+
+char *printCmd(int cmd)
+{
+	switch (cmd) {
+		case 0x1:return "LC_SEGMENT";
+		case 0x2:return "LC_SYMTAB";
+		case 0x3:return "LC_SYMSEG";
+		case 0x4:return "LC_THREAD";
+		case 0x5:return "LC_UNIXTHREAD";
+		case 0x6:return "LC_LOADFVMLIB";
+		case 0x7:return "LC_IDFVMLIBLC_IDENT";
+		case 0x8:return "LC_IDENT";
+		case 0x9:return "LC_FVMFILE";
+		case 0xa:return "LC_PREPAGE";
+		case 0xb:return "LC_DYSYMTAB";
+		case 0xc:return "LC_LOAD_DYLIB";
+		case 0xd:return "LC_ID_DYLIB";
+		case 0xe:return "LC_LOAD_DYLINKER";
+		case 0xf:return "LC_ID_DYLINKER";
+		case 0x10:return "LC_PREBOUND_DYLIB";
+		case 0x11:return "LC_ROUTINES";
+		case 0x12:return "LC_SUB_FRAMEWORK";
+		case 0x13:return "LC_SUB_UMBRELLA";
+		case 0x14:return "LC_SUB_CLIENT";
+		case 0x15:return "LC_SUB_LIBRARY";
+		case 0x16:return "LC_TWOLEVEL_HINTS";
+		case 0x17:return "LC_PREBIND_CKSUM";
+		case (0x18 | LC_REQ_DYLD):return "LC_LOAD_WEAK_DYLIB";
+		case 0x19:return "LC_SEGMENT_64";
+		case 0x1a:return "LC_ROUTINES_64";
+		case 0x1b:return "LC_UUID";
+		case (0x1c | LC_REQ_DYLD):return "LC_RPATH";
+		case 0x1d:return "LC_CODE_SIGNATURE";
+		case 0x1e:return "LC_SEGMENT_SPLIT_INFO";
+		case (0x1f | LC_REQ_DYLD):return "LC_REEXPORT_DYLIB";
+		case 0x20:return "LC_LAZY_LOAD_DYLIB";
+		case 0x21:return "LC_ENCRYPTION_INFO";
+		case 0x22:return "LC_DYLD_INFO";
+		case (0x22|LC_REQ_DYLD):return "LC_DYLD_INFO_ONLY";
+		case (0x23 | LC_REQ_DYLD):return "LC_LOAD_UPWARD_DYLIB";
+		case 0x24:return "LC_VERSION_MIN_MACOSX";
+		case 0x25:return "LC_VERSION_MIN_IPHONEOS";
+		case 0x26:return "LC_FUNCTION_STARTS";
+		case 0x27:return "LC_DYLD_ENVIRONMENT";
+		case (0x28|LC_REQ_DYLD):return "LC_MAIN";
+		case 0x29:return "LC_DATA_IN_CODE";
+		case 0x2a:return "LC_SOURCE_VERSION";
+		case 0x2b:return "LC_DYLIB_CODE_SIGN_DRS";
+		case 0x2c:return "LC_ENCRYPTION_INFO_64";
+		case 0x2d:return "LC_LINKER_OPTION";
+		case 0x2e:return "LC_LINKER_OPTIMIZATION_HINT";
+		case 0x2f:return "LC_VERSION_MIN_TVOS";
+		case 0x30:return "LC_VERSION_MIN_WATCHOS";
+		case 0x31:return "LC_NOTE";
+		case 0x32:return "LC_BUILD_VERSION";
+		case (0x33 | LC_REQ_DYLD):return "LC_DYLD_EXPORTS_TRIE";
+		case (0x34 | LC_REQ_DYLD):return "LC_DYLD_CHAINED_FIXUPS";
+		case (0x35 | LC_REQ_DYLD):return "LC_FILESET_ENTRY";
+		default: return "Error : No such Load Command exists!";
+	}
+}
+
+void *loadLCommands(FILE *file,mheader64 *header)
+{
+	fseek(file, sizeof(mheader64), SEEK_SET);
+	void *load_commands = malloc(header->sizeofcmds);
+	if (load_commands == NULL) perror("Failed to buffer load commands");
+	fread(load_commands, header->sizeofcmds, 1, file);
+	return load_commands;
+}
+
+void printLCommands(void *file,mheader64 *header)
+{
+	struct load_command *load_command = file;
+	for (size_t LC_cnt = 0; LC_cnt < header->ncmds; LC_cnt++) {
+		printf("%3zu|\t0x%8x\t%27s\t%5x[%6d]\t%s\n",
+			LC_cnt+1,load_command->cmd,
+			printCmd(load_command->cmd),
+			load_command->cmdsize,
+			load_command->cmdsize,
+			(load_command->cmd == LC_SEGMENT_64) ? ((struct segment_command_64 *)load_command)->segname : ""
+		);
+		load_command = (uint64_t)load_command + load_command->cmdsize;
+	}
+}
+void printLCSegment(void *file,mheader64 *header)
+{
+	struct load_command *load_command = file;
+	for (size_t LC_cnt = 0; LC_cnt < header->ncmds; LC_cnt++) {
+		if (load_command->cmd == LC_SEGMENT_64) {
+			printf("\n%3zu|\t0x%8x\t%27s\t%5x[%6d]\t%14s\nvmaddr: 0x%012llx\tvmsz: 0x%010llx\tfilesz: 0x%5llx[%6llu]\tnsect: %u\n\n",
+				LC_cnt+1,
+				load_command->cmd,
+				printCmd(load_command->cmd),
+				load_command->cmdsize,
+				load_command->cmdsize,
+				((struct segment_command_64 *)load_command)->segname,
+				((struct segment_command_64 *)load_command)->vmaddr,
+				((struct segment_command_64 *)load_command)->vmsize,
+				((struct segment_command_64 *)load_command)->filesize,
+				((struct segment_command_64 *)load_command)->filesize,
+				((struct segment_command_64 *)load_command)->nsects
+			);
+			for (size_t sec_cnt = 0; sec_cnt < ((struct segment_command_64 *)load_command)->nsects ; sec_cnt++) {
+				struct section_64 *sec_ptr = (uint64_t)load_command + sizeof(struct segment_command_64) + (sec_cnt * sizeof(struct section_64));
+				printf("\t\t%24s\tvmaddr: 0x%012x\tvmsz: 0x%010llx\talign: 2^%d\tnreloc: %d\n",
+					sec_ptr->sectname,
+					sec_ptr->addr,
+					sec_ptr->size,
+					sec_ptr->align,
+					sec_ptr->nreloc
+					
+				);
+			}
+		}
+		load_command = (uint64_t)load_command + load_command->cmdsize;
+	}
+}
+
+mheader64 *parseMHeader(FILE *file)
+{
+	mheader64 *magic = malloc(sizeof(mheader64));
+	fseek(file, 0, SEEK_SET);
+	fread(magic, sizeof(mheader64), 1, file);
+	return magic;
+}
+
+int main(int argc, char *argv[])
+{
+	unsigned int opt;
+	char		*file	= NULL;
+	FILE 		*handle;
+	mheader64	*header	= NULL;
+	void *load_commands	= NULL;
+	bool givenFile = false;
 	
+	while ((opt = getopt(argc, argv, "f:Hhvcas")) != -1) {
+		switch (opt) {
+			case 'a':
+			case 'f':
+				{
+					if (optarg) {
+						file = optarg;
+						givenFile = true;
+						handle = fopen(file, "r");
+					} else {
+						perror("Failed to retrieve file\n");
+					}
+					break;
+				}
+			case 'v':
+				{
+					printf("MachODump version : %1.2f\n",MACHODUMP_VERSION);
+					break;
+				}
+			case 'h':
+				{
+					if (givenFile) {
+						header = parseMHeader(handle);
+						printHeader(header);
+					} else {
+						perror("Failed to provide file\n");
+					}
+					break;
+				}
+			case 'c':
+				{
+					if (givenFile) {
+						if (header == NULL)	header = parseMHeader(handle);
+						if (load_commands == NULL) load_commands = loadLCommands(handle, header);
+						printf("\t%8s\t%27s\t\t%11s\t%10s\n",
+						"cmd",
+						"cmdtype",
+						"cmdsize 0x[0d]",
+						"segname"
+						);
+						printLCommands(load_commands, header);
+					} else {
+						perror("Failed to provide file\n");
+					}
+					break;
+				}
+			case 's':
+				{
+					if (givenFile) {
+						if (header == NULL)	header = parseMHeader(handle);
+						if (load_commands == NULL) load_commands = loadLCommands(handle, header);
+						printLCSegment(load_commands, header);
+					} else {
+						perror("Failed to provide file\n");
+					}
+					break;
+				}
+			case 'H':
+				{
+					printHelp();
+					break;
+				}
+			default:
+				{
+					printf("-%c is an unrecognised command!\nUsage: ./machodump [-f file] [-hvcH]\n",opt);
+				}
+		}
+	}
+}
+
+
+
